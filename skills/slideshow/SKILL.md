@@ -250,3 +250,4 @@ Available Reveal.js themes (change the theme CSS link):
 - Avoid extremely wide diagrams — they won't fit the slide. Use `graph TD` (top-down) over `graph LR` (left-right) for tall/narrow layouts.
 - For complex diagrams, use `%%` comments in the Mermaid source to document the structure.
 - Re-render on slide change to handle lazy loading (already handled in the template above).
+- **Use `<br/>` for line breaks in labels, NOT `\n`.** `\n` is silently ignored in node labels, participant aliases, edge labels, and Note text.
