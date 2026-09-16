@@ -26,6 +26,7 @@ allowed-tools:
   - Bash(adb shell pm list*)
   - Bash(adb shell ps*)
   - Bash(adb shell screencap*)
+  - Bash(adb shell service call iphonesubinfo 10*)
   - Bash(adb shell service list*)
   - Bash(adb shell settings get*)
   - Bash(adb shell stat*)
@@ -76,6 +77,7 @@ These commands modify device state and will prompt the user before running:
 - `adb shell cmd` — Arbitrary command execution
 - `adb shell setprop` — Modify system properties
 - `adb shell svc` — Control system services (wifi, data, power)
+- `adb shell service call` — Arbitrary binder transaction. Only `iphonesubinfo 10` (read the IMSI, below) is pre-approved. **Never sweep transaction numbers to find a method**: numbering shifts between Android releases, and on some interfaces a neighbouring transaction is a *setter* — `iphonesubinfo 7 i32 0 s16 <imei>` writes an IMEI on modified ROMs. Look the transaction up in AOSP for the target release instead.
 
 ## Guidelines
 
@@ -109,3 +111,32 @@ These commands modify device state and will prompt the user before running:
 ### Capture a screenshot
 1. `adb shell screencap /sdcard/screenshot.png`
 2. `adb pull /sdcard/screenshot.png ./screenshot.png`
+
+### Read the SIM's IMSI (no root)
+
+```bash
+SUBID=$(adb shell dumpsys isub | sed -nE 's/.*Logical SIM slot +[0-9]+: *subId=([0-9]+).*/\1/p' | head -1)
+adb shell service call iphonesubinfo 10 i32 "$SUBID" s16 com.android.shell s16 com.android.shell \
+  | sed -nE "s/.*'(.*)'.*/\1/p" | tr -d " .'"
+```
+
+Transaction `10` is `getSubscriberIdForSubscriber(int subId, String pkg, String featureId)`. Verified on a Pixel 9a / Android 16 user build. Three details matter, and every public cheatsheet gets at least one wrong:
+
+- the `int` is a **subId, not a slot index** — read it from `dumpsys isub` as above (it also handles multi-SIM: one `Logical SIM slot N: subId=M` line each)
+- the two `s16` **package arguments are required**. Passing the caller's own package (`com.android.shell`) satisfies the permission check; without them, transactions `8`/`9` (`getSubscriberId`) return `fffffffc` = `SecurityException`, since they need `READ_PRIVILEGED_PHONE_STATE`
+- **transaction numbers shift between releases.** The `iphonesubinfo 7` and `iphonesubinfo 1` recipes that circulate (and which assume `su`) return an unrelated short string on Android 16
+
+The reply is a `Parcel` whose ASCII gutter already spells out the digits — UTF-16LE, so each digit is followed by `.`, and the `tr` above strips the padding. The second word is the string length, e.g. `0000000f` = 15 digits for a full IMSI:
+
+```
+Result: Parcel(
+0x00000000: 00000000 0000000f 00300030 00300031 '........0.0.1.0.'
+0x00000010: 00300031 00300030 00300030 00300030 '1.0.0.0.0.0.0.0.'
+0x00000020: 00300030 00000031                   '0.0.1...        ')
+```
+
+(IMSI `001010000000001` — a synthetic value in the `001/01` test PLMN.)
+
+**What does not work**, so you don't retry it: `adb shell dumpsys isub` prints the IMSI but masks it via `pii()` (9-digit prefix + `[****]`) on user builds — useful for ICCID, eUICC card and profile name, not the full IMSI. `content://telephony/siminfo` refuses non-phone UIDs (`SecurityException: Access SIMINFO table from not phone/system UID`). `adb shell dumpsys iphonesubinfo` worked only up to Android 4.4. `su` is unavailable on production builds.
+
+For a visual cross-check, the radio test menu shows the IMSI on screen: `adb shell am start -n com.android.phone/.settings.RadioInfo` (this launches an activity, so confirm first).
