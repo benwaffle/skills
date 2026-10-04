@@ -226,7 +226,7 @@
   #read .rows.single .gut .ln:first-child { display: none; }
   #read .rows mark.xref { color: var(--blue); text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; }
   #read .rows mark.xref.open { background: rgba(110,170,255,.18); border-radius: 3px; text-decoration-style: solid; }
-  #read .rows mark.xref.plain { color: inherit; text-decoration: none; cursor: default; }
+  #read .rows mark.xref.plain, #read .rows.raw mark.xref { color: inherit; text-decoration: none; cursor: default; }
   .ann { font-family: -apple-system, sans-serif; font-size: 10.5px; margin-left: 14px; }
   .badge { font-family: -apple-system, sans-serif; font-size: 10.5px; border-radius: 4px; padding: 0 5px; margin-right: 4px; }
   .b-opt { background: #3d3220; color: #ffd08a; } .b-list { background: #22324d; color: #9cc4ff; } .b-map { background: #33284a; color: #d3b0ff; }
@@ -901,11 +901,14 @@ function testCell(c, col, prefix) {
     return el('td', col === 'name' || col === 'desc' ? '' : 'str', esc(c.str));
   }
   const td = el('td', 'code');
-  const flat = flatOf(c);
+  // A struct literal with a short form (only the fields where it departs from the column's usual) shows that instead.
+  const toks = c.diff || c.toks;
+  if (c.diff) prefix = 0;
+  const flat = toks.map(t => t[1]).join('');
   const pre = prefix ? `<span class="pre" title="${esc(flat.slice(0, prefix))}">…</span>` : '';
   const fits = flat.length - prefix <= CELL_MAX;
-  if (fits && !prefix) { td.innerHTML = tokSlice(c.toks, 0); return td; }
-  const short = pre + (fits ? tokSlice(c.toks, prefix) : tokSlice(c.toks, prefix, prefix + CELL_MAX - 1) + '…');
+  if (fits && !prefix && !c.diff) { td.innerHTML = tokSlice(toks, 0); return td; }
+  const short = pre + (fits ? tokSlice(toks, prefix) : tokSlice(toks, prefix, prefix + CELL_MAX - 1) + '…');
   const text = el('span', '', short);
   const more = el('span', 'more', 'more');
   more.onclick = () => {
@@ -919,16 +922,17 @@ function testCell(c, col, prefix) {
 function caseTable(t, key) {
   const table = el('table', 'ttable');
   const tr = el('tr');
+  const columns = t.columns.filter(c => t.rows.some(r => r.cells[c]));  // a field none of these cases set gets no column
   tr.appendChild(el('th', '', ''));
-  t.columns.forEach(c => tr.appendChild(el('th', '', esc(c))));
+  columns.forEach(c => tr.appendChild(el('th', '', esc(c))));
   table.appendChild(el('thead')).appendChild(tr);
   const tb = el('tbody');
-  const prefixes = Object.fromEntries(t.columns.map(c => [c, sharedPrefixes(t.rows.map(r => r.cells[c]))]));
+  const prefixes = Object.fromEntries(columns.map(c => [c, sharedPrefixes(t.rows.map(r => r.cells[c]))]));
   t.rows.forEach((r, i) => {
     const row = el('tr', r.mark || '');
     row.dataset.hk = r.keys.map(key).join(' ');
     row.appendChild(el('td', 'num', i + 1));
-    t.columns.forEach(c => row.appendChild(testCell(r.cells[c], c, prefixes[c][i])));
+    columns.forEach(c => row.appendChild(testCell(r.cells[c], c, prefixes[c][i])));
     tb.appendChild(row);
   });
   table.appendChild(tb);

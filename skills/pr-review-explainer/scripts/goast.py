@@ -11,6 +11,7 @@ ERR_CHECK = re.compile(r"\b\w*[eE]rr\w*\s*!=\s*nil\b")
 ERR_NAME = re.compile(r"^\w*[eE]rr\w*$")
 ERR_MAKER = re.compile(r"\b(?:fmt\.Errorf|errors\.(?:New|Join|Wrap\w*)|multierr\.\w+)\(")
 EXIT_CALL = re.compile(r"^(?:panic|[\w.]*\.(?:Fatal|Panic)\w*)$")
+REPORT_CALL = re.compile(r"^(?:print|println)$|\.(?:Usage|Print\w*|Fprint\w*|Debug\w*|Info\w*|Warn\w*|Error\w*)$")
 BUILTINS = {"append", "cap", "clear", "close", "complex", "copy", "delete", "imag", "len", "make", "max", "min", "new",
             "print", "println", "real", "recover", "bool", "byte", "rune", "string", "error", "int", "int8", "int16",
             "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64", "uintptr", "float32", "float64"}
@@ -218,6 +219,38 @@ def types(files):
 
 # ---------------- table-driven tests ----------------
 
+def literal_body(src, n):
+    """A composite literal's type text (with any &) and its literal_value, also for an elided `{...}` inside a slice;
+    (None, None) for anything else."""
+    if n.type == "literal_element" and n.named_children:
+        n = n.named_children[0]
+    amp = ""
+    if n.type == "unary_expression" and src.text(n).startswith("&"):
+        n, amp = n.child_by_field_name("operand"), "&"
+    if n.type == "composite_literal":
+        return amp + flat(src.text(n.child_by_field_name("type"))), n.child_by_field_name("body")
+    if n.type == "literal_value":
+        return amp, n
+    return None, None
+
+
+def leaves(src, n, path=""):
+    """A composite literal's values by path: `KeyType`, `Keys[0].Region`. Anything that isn't a composite literal with
+    elements is a leaf, held as its flattened code."""
+    _, body = literal_body(src, n)
+    elems = [c for c in body.named_children if c.type != "comment"] if body is not None else []
+    if not elems:
+        return {path: flat(src.text(n))} if path else {}
+    out = {}
+    for i, c in enumerate(elems):
+        if c.type == "keyed_element":
+            key = src.text(c.child_by_field_name("key"))
+            out.update(leaves(src, c.child_by_field_name("value"), f"{path}.{key}" if path else key))
+        else:
+            out.update(leaves(src, c, f"{path}[{i}]"))
+    return out
+
+
 def cell(src, n):
     inner = n.named_children[0] if n.type == "literal_element" and n.named_children else n
     text = src.text(inner)
@@ -226,7 +259,11 @@ def cell(src, n):
         s = text[1:-1].encode().decode("unicode_escape", errors="replace")
     elif inner.type == "raw_string_literal":
         s = text[1:-1]
-    return {"code": text, "str": s, "multiline": "\n" in text}
+    ctype, body = literal_body(src, inner)
+    out = {"code": text, "str": s, "multiline": "\n" in text}
+    if body is not None and any(c.type == "keyed_element" for c in body.named_children):
+        out.update(ctype=ctype, fields=leaves(src, inner))
+    return out
 
 
 def table_tests(src):
@@ -287,9 +324,16 @@ def error_statement(src, s):
     return False
 
 
+def report_call(src, s):
+    """A statement that only reports: a log line, a print, or a flag set's usage."""
+    if s.type != "expression_statement" or not s.named_children or s.named_children[0].type != "call_expression":
+        return False
+    return bool(REPORT_CALL.search(src.text(s.named_children[0].child_by_field_name("function"))))
+
+
 def handles_error(src, n):
-    """An if with no else that checks `err != nil`, or whose body does nothing but error statements, optionally
-    followed by a continue or break."""
+    """An if with no else that checks `err != nil`, or whose body does nothing but error statements, maybe after
+    reporting it and maybe followed by a continue or break."""
     if n.child_by_field_name("alternative") is not None:
         return False
     if ERR_CHECK.search(src.text(n.child_by_field_name("condition"))):
@@ -297,20 +341,27 @@ def handles_error(src, n):
     body = statements(n.child_by_field_name("consequence"))
     if body and body[-1].type in ("continue_statement", "break_statement"):
         body = body[:-1]
-    return bool(body) and all(error_statement(src, s) for s in body)
+    errors = [s for s in body if error_statement(src, s)]
+    return bool(errors) and all(s in errors or report_call(src, s) for s in body)
+
+
+def spans(a, b=None):
+    """From node a's start to node b's end (a's by default), as one (line, start byte, end byte or None for the
+    line's end) per line."""
+    (r1, c1), (r2, c2) = a.start_point, (b or a).end_point
+    return [[r + 1, c1 if r == r1 else 0, c2 if r == r2 else None] for r in range(r1, r2 + 1)]
 
 
 def work_calls(src, n):
     """The outermost calls under n that do real work: anything but error constructors, builtins, conversions to
-    builtin types, panics and Fatal logs. Each is a list of (line, start byte, end byte or None for the line's end)."""
+    builtin types, reporting, panics and Fatal logs."""
     out = []
 
     def visit(m):
         if m.type == "call_expression":
             fn = src.text(m.child_by_field_name("function"))
-            if not (ERR_MAKER.fullmatch(fn + "(") or fn in BUILTINS or EXIT_CALL.match(fn)):
-                (r1, c1), (r2, c2) = m.start_point, m.end_point
-                out.append([[r + 1, c1 if r == r1 else 0, c2 if r == r2 else None] for r in range(r1, r2 + 1)])
+            if not (ERR_MAKER.fullmatch(fn + "(") or fn in BUILTINS or EXIT_CALL.match(fn) or REPORT_CALL.search(fn)):
+                out.append(spans(m))
                 return
         for c in m.named_children:
             visit(c)
@@ -320,12 +371,18 @@ def work_calls(src, n):
 
 
 def error_blocks(src):
-    """Error-handling if blocks, outermost only: their line range and the calls in them that do real work."""
+    """Error-handling if blocks, outermost only: their line range, and the spans to keep bright when the block folds
+    to one line. Those are the calls that do real work and, unless the condition only checks an err, the condition
+    with its initializer: a check like `remaining != 0` is logic worth reading, not plumbing."""
     out = []
 
     def visit(n):
         if n.type == "if_statement" and handles_error(src, n):
-            out.append({"start": first(n), "end": last(n), "calls": work_calls(src, n)})
+            bright = work_calls(src, n)
+            cond = n.child_by_field_name("condition")
+            if not ERR_CHECK.search(src.text(cond)):
+                bright.append(spans(n.child_by_field_name("initializer") or cond, cond))
+            out.append({"start": first(n), "end": last(n), "bright": bright})
             return
         for c in n.named_children:
             visit(c)

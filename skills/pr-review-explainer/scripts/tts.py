@@ -54,7 +54,8 @@ def pattern(terms):
     if not terms:
         return None
     alternatives = "|".join(sorted(map(re.escape, terms), key=len, reverse=True))
-    return re.compile(r"(?<![\w-])(" + alternatives + r")(?![\w-])")
+    # A hyphen is a word boundary, so AES-GCM finds AES and GCM; longer hyphenated terms like ULR-Flags still win.
+    return re.compile(r"(?<!\w)(" + alternatives + r")(?!\w)")
 
 
 class Lexicon:

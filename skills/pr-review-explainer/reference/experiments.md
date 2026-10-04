@@ -59,6 +59,19 @@ All three moved into read mode (see Built), with no global toggles: Ben said "we
 | Change summaries as chips (lab round 1): declarations, params, fields and call arguments from tree-sitter | "too deterministic, let the LLM do it instead", which became the outline. |
 | The PR as an outline (lab round 2): every hunk folded under a one-line summary the agent wrote | "it's easier to read the code than the english descriptions". Prose standing in for code loses to the code itself. |
 
+## Open from the second test PR
+
+A subagent ran the whole skill on a 40-file PR that mostly modifies existing code. These were found and are not fixed yet:
+- **Stat scene:** `hl` on a file row below the pane's fold doesn't scroll to it, so the highlight is off screen.
+- **Tour code pane:** long lines are cut at the right edge, worst with `side: wide`.
+- **Spec format:**
+  - `side:` is set per scene, so cues without notes still give up code width;
+  - no action can point at a summary scene's `tests`;
+  - a summary holds at most 4 items.
+- **Test tables:** a changed case shows only its new value; the old one is in the raw diff only.
+- **Rest of the diff:** modified files still carry both structural and raw rows, which makes up most of the page's size.
+- **Narration:** two cue starts may be clipped by the voice ("Unwrap first…" heard as "App first…"); listen before trusting it.
+
 ## To try
 
 - **Explaining code without replacing it.** Ben: "keep exploring ideas around explaining code". Two summaries lost to the code they described (chips and the outline), so explanations should sit beside the code or inside it, not in place of it.
@@ -94,4 +107,10 @@ Both rounds play at the same words per minute, and switching voices mid-line pic
 - Coined words like "or-ed" and "and-ed" trip up every TTS engine. Write "joined with OR" instead.
 - Small autoregressive TTS models can run away: Soprano produced 30 s of wordless noise in place of half a sentence. A transcript check catches it. Look for a long stretch with no recognized words, not just a word error rate.
 - The inline viewer shows pages in an iframe sandboxed without `allow-same-origin`, where even reading `localStorage` throws and stops the script. Guard it.
+- A rendering tuned on one PR breaks on the next. The lab's first PR was all new files; on a PR that modifies code:
+  - windows built from line ranges had silent gaps;
+  - folds hid the only change in a hunk;
+  - a prefix trim hid the one field that told two cases apart.
+
+  Try every rendering on a modification-heavy PR before it moves into read mode.
 - WebM written to a pipe has no duration (`audio.duration` is Infinity, so seeking breaks). Have ffmpeg write a file.

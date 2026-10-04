@@ -22,7 +22,7 @@ from concurrent.futures import ThreadPoolExecutor
 import yaml
 
 import views
-from highlight import char_links, char_ranges, render, tokens_by_line
+from highlight import char_ranges, render, tokens_by_line
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE = os.path.join(os.path.dirname(HERE), "assets", "template.html")
@@ -157,22 +157,25 @@ class FileDiff:
         return out
 
     def html_row(self, r, links=()):
-        """A row as HTML. `links` are (start byte, end byte, type id) spans that become type links."""
+        """A row as HTML. `links` are (start byte, end byte, ref[, mark class]) spans; the class defaults to xref, a
+        type link."""
         old = r["k"] == "-"
         toks, line = (self.old_tok, r["o"]) if old else (self.new_tok, r["n"])
         tokens = toks[line - 1] if line and line - 1 < len(toks) else []
         if "".join(t for _, t in tokens) != r["text"]:
             tokens = [("", r["text"])]
         marks = char_ranges(r["text"], r.get("marks") or [])
-        xrefs = char_links(r["text"], links)
-        return {"k": r["k"], "o": r["o"], "n": r["n"], "h": render(tokens, marks, "x-del" if old else "x-ins", [(xrefs, "xref")])}
+        return {"k": r["k"], "o": r["o"], "n": r["n"], "h": render(tokens, marks, "x-del" if old else "x-ins", views.link_layers(r["text"], links))}
 
     def window(self, rows, struct_rows):
         nums = [r["n"] or r["o"] for r in struct_rows if r["n"] or r["o"]] or [0]
         first_new = next((r["n"] for r in struct_rows if r["n"]), None)
-        return {"file": self.path, "isNew": self.is_new, "range": f"L{min(nums)}–{max(nums)}",
-                "url": self.repo.url(self.path, first_new, old=self.is_deleted),
-                "rows": [self.html_row(r) for r in struct_rows], "raw": [self.html_row(r) for r in rows]}
+        win = {"file": self.path, "isNew": self.is_new, "range": f"L{min(nums)}–{max(nums)}",
+               "url": self.repo.url(self.path, first_new, old=self.is_deleted), "rows": [self.html_row(r) for r in struct_rows]}
+        raw = [self.html_row(r) for r in rows]
+        if raw != win["rows"]:  # new files and files difftastic can't parse look the same either way, so send them once
+            win["raw"] = raw
+        return win
 
 
 # ---------------- link titles ----------------
@@ -328,14 +331,25 @@ class Builder:
         h, i = rows[0]
         w, r = scene["hunks"][h], scene["hunks"][h]["_struct"][i]
         line, old = (r["o"], True) if r["k"] == "-" else (r["n"], False)
-        return {"label": f"{os.path.basename(w['file'])}:{line}", "url": self.repo.url(w["file"], line, old)}
+        return {"label": f"{self.short_path(w['file'])}:{line}", "url": self.repo.url(w["file"], line, old)}
+
+    def short_path(self, path):
+        """The shortest tail of a path that no other file in the PR shares: main.go, or migrate/main.go when the PR has
+        several."""
+        others = [p for p in self.views.changed_paths if p != path]
+        parts = path.split("/")
+        for k in range(1, len(parts) + 1):
+            tail = "/".join(parts[-k:])
+            if not any(p == tail or p.endswith("/" + tail) for p in others):
+                return tail
+        return path
 
     def ref_marker(self, file, marker):
         fd = self.repo.file(file)
         n = next((i + 1 for i, line in enumerate(fd.new_lines) if marker in line), None)
         if n is None:
             raise SpecError(f"{file}: ref marker not found: {marker!r}")
-        return {"label": f"{os.path.basename(file)}:{n}", "url": self.repo.url(file, n)}
+        return {"label": f"{self.short_path(file)}:{n}", "url": self.repo.url(file, n)}
 
     def build(self):
         import numpy as np
@@ -366,7 +380,7 @@ class Builder:
                     samples, spoken = self.voice.speak(speech)
                     dur = len(samples) / RATE
                     parts += [samples, silence(CUE_GAP)]
-                    if re.search(r"[A-Z]{2,}|\d|[a-z][A-Z]", speech):
+                    if spoken != speech or re.search(r"[A-Z]{2,}|\d|[a-z][A-Z]", speech):
                         print(f"    spoken as: {speech}\n               {spoken}")
                     # Autoregressive voices can lose their place and babble; far more audio than words is the sign.
                     words = len(speech.split())

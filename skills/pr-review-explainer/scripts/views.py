@@ -5,12 +5,14 @@ languages get none of them."""
 import itertools
 import os
 import re
+from collections import Counter
 
 import goast
 from highlight import char_links, css_class, lexer_for, render, tokens_by_line
 
 ONE_LINE_STMTS = 2
 MIN_CASES = 2
+DIFF_MIN = 3
 
 
 def strip_indent(tokens):
@@ -42,14 +44,16 @@ def render_dimmed(tokens):
 
 def one_line(tokens, lines, block):
     """An if-block's lines joined onto one highlighted line: `if err != nil { return err }`. Lines inside a statement
-    join with a space, statements with "; ", and only the first few statements are kept. Everything but the block's
-    work calls is dimmed."""
+    join with a space, statements with "; ", and only the first few statements are kept. Comments are left out, since
+    joined they read as commented-out code. Everything but the block's bright spans is dimmed."""
     ranges = {}
-    for call in block["calls"]:
-        for n, a, b in call:
+    for span in block["bright"]:
+        for n, a, b in span:
             text = lines[n - 1]
             ranges.setdefault(n, []).extend(r[:2] for r in char_links(text, [(a, len(text.encode()) if b is None else b, "")]))
-    rows = [split_live(tokens[n - 1], ranges.get(n, [])) for n in range(block["start"], block["end"] + 1)]
+    rows = [[t for t in split_live(tokens[n - 1], ranges.get(n, [])) if not t[0].startswith("t-c")]
+            for n in range(block["start"], block["end"] + 1)]
+    rows = [l[:-1] + [(l[-1][0], l[-1][1].rstrip(), l[-1][2])] if l else l for l in rows]
     body = [strip_indent(l) for l in rows[1:-1] if any(t[1].strip() for t in l)]
     out, stmts = list(rows[0]) + [("", " ", False)], 0
     for i, line in enumerate(body):
@@ -87,6 +91,43 @@ def full_html(code):
     return "\n".join(render(toks, [], "") for toks in tokens_by_line("\n".join(lines), "cell.go"))
 
 
+def link_layers(text, links):
+    """(start byte, end byte, ref[, mark class]) spans in a line as render() layers, one per mark class."""
+    layers = {}
+    for l in links:
+        layers.setdefault(l[3] if len(l) > 3 else "xref", []).append(l[:3])
+    return [(char_links(text, ls), cls) for cls, ls in layers.items()]
+
+
+def usual_diffs(cells):
+    """Gives each struct-literal cell in a column a short form, `diff`, with only the fields where it departs from the
+    column's usual: a value other than the most common one for that field, a field most cells don't set, or one most
+    cells set and this one doesn't. Cases that differ deep inside a long literal then look different. A column needs
+    a few struct literals to have a usual."""
+    comp = [c for c in cells if c and c.get("fields") is not None]
+    if len(comp) < DIFF_MIN:
+        return
+    counts = {}
+    for c in comp:
+        for p, v in c["fields"].items():
+            counts.setdefault(p, Counter())[v] += 1
+    half = len(comp) / 2
+    for c in comp:
+        fields = c["fields"]
+        diffs = [f"{p}: {v}" for p, v in fields.items() if sum(counts[p].values()) <= half or v != counts[p].most_common(1)[0][0]]
+        for p, cnt in counts.items():
+            if p in fields or sum(cnt.values()) <= half:
+                continue
+            ancestors = [p[:m.start()] for m in re.finditer(r"\.|\[", p)] + [p]
+            if any(a in fields for a in ancestors):  # set here as a whole, by a call or a variable
+                continue
+            # A missing subtree shows once, at its root: `TransportKeys: unset`, not each of its fields.
+            root = next(a for a in ancestors if not any(k == a or k.startswith((a + ".", a + "[")) for k in fields))
+            if f"{root}: unset" not in diffs:
+                diffs.append(f"{root}: unset")
+        c["diff"] = flat_tokens(f"{c['ctype']}{{{', '.join(diffs) if diffs else '…'}}}")
+
+
 def badges(field):
     """A field's type spelled out at the end of its line: optional (an omitempty pointer), pointer, list of, map K →."""
     out = []
@@ -94,7 +135,8 @@ def badges(field):
         if m == "pointer":
             out.append(["opt", "optional"] if field["omitempty"] else ["ptr", "pointer"])
         elif m == "list":
-            out.append(["list", "list of"])
+            if field["base"] != "byte":  # []byte is a blob, not a list
+                out.append(["list", "list of"])
         else:
             out.append(["map", re.sub(r"^map\[(.*)\]$", r"map \1 →", m)])
     return out
@@ -141,20 +183,27 @@ class Views:
     def _types(self):
         """Every type in the packages the PR touches, keyed `dir:Name`. A field's type resolves within its package, or
         across those packages by package name."""
-        dirs = sorted({os.path.dirname(p) for p in self.changed_paths
-                       if p.endswith(".go") and not p.endswith("_test.go") and self.text(p) is not None})
+        self.dirs = sorted({os.path.dirname(p) for p in self.changed_paths
+                            if p.endswith(".go") and not p.endswith("_test.go") and self.text(p) is not None})
+        self.by_pkg = {os.path.basename(d): d for d in self.dirs}
         out = {}
-        for d in dirs:
-            files = {f: self.text(f) for f in self.repo.ls(self.repo.head, d) if f.endswith(".go") and not f.endswith("_test.go")}
-            out.update({f"{d}:{name}": t for name, t in goast.types(files).items()})
-        by_pkg = {os.path.basename(d): d for d in dirs}
+        for d in self.dirs:
+            out.update({f"{d}:{name}": t for name, t in goast.types(self.package_files(d)).items()})
         for tid, t in out.items():
             d = tid.rsplit(":", 1)[0]
             for f in t.get("fields", []):
                 pkg, _, name = f["base"].rpartition(".")
-                target = f"{by_pkg.get(pkg) if pkg else d}:{name}"
+                target = f"{self.by_pkg.get(pkg) if pkg else d}:{name}"
                 f["ref"] = target if target in out else None
         return out
+
+    def package_files(self, d):
+        """A package's non-test sources at the PR head."""
+        return {f: self.text(f) for f in self.repo.ls(self.repo.head, d) if f.endswith(".go") and not f.endswith("_test.go")}
+
+    def row_links(self, path, n):
+        """The links on a line, as (start byte, end byte, ref[, mark class]); the class defaults to xref, a type link."""
+        return self.links.get((path, n), [])
 
     def _line_index(self):
         """Per (file, line): its type links, as (start byte, end byte, type id), and its badges."""
@@ -181,8 +230,8 @@ class Views:
         changed, is_new = self.changed(path), self.is_new(path)
         rows = []
         for n in range(start, min(end, len(toks)) + 1):
-            xrefs = char_links(lines[n - 1], self.links.get((path, n), []))
-            row = {"k": "+" if is_new or n in changed else " ", "o": None, "n": n, "h": render(toks[n - 1], [], "", [(xrefs, "xref")])}
+            row = {"k": "+" if is_new or n in changed else " ", "o": None, "n": n,
+                   "h": render(toks[n - 1], [], "", link_layers(lines[n - 1], self.row_links(path, n)))}
             if (path, n) in self.ann:
                 row["ann"] = self.ann[(path, n)]
             rows.append(row)
@@ -247,6 +296,12 @@ class Views:
                             c["toks"] = flat_tokens(c["code"])
                             if c["multiline"]:
                                 c["html"] = full_html(c["code"])
+                for col in t["columns"]:
+                    usual_diffs([r["cells"].get(col) for r in t["rows"]])
+                for r in t["rows"]:
+                    for c in r["cells"].values():
+                        c.pop("fields", None)
+                        c.pop("ctype", None)
             self._tables[path] = tables
         return self._tables[path]
 
@@ -282,10 +337,10 @@ class Views:
             if not r["n"] or r["k"] == "-":
                 continue
             index[r["n"]] = i
-            links = self.links.get((fd.path, r["n"]))
+            links = self.row_links(fd.path, r["n"])
             if links:
                 win["rows"][i] = fd.html_row(r, links)
-                self.used.update(ref for *_, ref in links)
+                self.used.update(l[2] for l in links if len(l) == 3)
             if (fd.path, r["n"]) in self.ann:
                 win["rows"][i]["ann"] = self.ann[(fd.path, r["n"])]
         win["folds"] = self.window_folds(fd.path, struct, index)
