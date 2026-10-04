@@ -34,11 +34,16 @@ These are Ben's ideas for visualizing a PR. He wants all of them tried, one at a
 - **Test cases as a table, inside the test**: *keep*, "can we not upper case the column names, and syntax highlight the cells that are code".
 - **Happy path** (only `err != nil` checks folded): *keep*, "when i expand an error line to show the full version, hide the collapsed version and let me click on the full version to collapse". He also asked whether checks like `if key == ""` and `if _, exists := seen[key]; exists` should count, and whether the LLM should decide. The answer was a broader rule in code: the check is mechanical, the result is predictable, it needs no spec work, and a wrong fold still shows the real code on one line.
 
-| Round 3 | What the lab shows | Verdict |
+**Round 3 verdicts:**
+- **Types as code you can open** (empty old-line-number column dropped): no verdict yet.
+- **Test cases as a table, inside the test** (field-name headers, highlighted code cells): *keep*, but a cell whose shared start was trimmed to `…` and whose rest was short had no way to show the full value.
+- **Happy path** (broader error rule, fold replaced by the block when open): *keep*, "good, but some calls are grayed out that i want to see, like `xml.Unmarshal()` or `criterion.validate()`".
+
+| Round 4 | What the lab shows | Verdict |
 |---|---|---|
 | Types as code you can open | The real declarations, starting from the types that contain the rest. A type name in a field opens that type's declaration nested under the line. Methods open the same way. Line-end badges: `pointer`, `optional` (`omitempty` pointers), `list of`, `map K →`; `iota` consts show `= N`. Code with no old side drops the empty old-line-number column. | pending |
-| Test cases as a table, inside the test | The test function as code, with the case literals replaced in place by the table; a bar switches between table and code. Columns are the field names as written. Code cells are syntax-highlighted. Boilerplate shared by 3+ cases shows as `…`. | pending |
-| Happy path | Each error-handling `if` (no else) joined onto one dimmed, highlighted line of its real code, like an editor fold. It counts when the condition checks `err != nil`, or when the body only returns an error, assigns to err-named variables (`errs = multierr.Append(…)`), panics or calls a `Fatal` log, optionally ending in `continue` or `break`. Opening a fold replaces the line with the block; clicking the block folds it again. | pending |
+| Test cases as a table, inside the test | The test function as code, with the case literals replaced in place by the table; a bar switches between table and code. Columns are the field names as written. Code cells are syntax-highlighted. Boilerplate shared by 3+ cases shows as `…`, and every trimmed or cut cell has **more** to show it in full. | pending |
+| Happy path | Each error-handling `if` (no else) joined onto one dimmed, highlighted line of its real code, like an editor fold. It counts when the condition checks `err != nil`, or when the body only returns an error, assigns to err-named variables (`errs = multierr.Append(…)`), panics or calls a `Fatal` log, optionally ending in `continue` or `break`. Calls that do real work stay bright (`if err := f(); …`, `errs = multierr.Append(errs, x.validate())`); error constructors, builtins and conversions dim with the rest. Opening a fold replaces the line with the block; clicking the block folds it again. | pending |
 
 ## Tried and dropped
 

@@ -11,6 +11,9 @@ ERR_CHECK = re.compile(r"\b\w*[eE]rr\w*\s*!=\s*nil\b")
 ERR_NAME = re.compile(r"^\w*[eE]rr\w*$")
 ERR_MAKER = re.compile(r"\b(?:fmt\.Errorf|errors\.(?:New|Join|Wrap\w*)|multierr\.\w+)\(")
 EXIT_CALL = re.compile(r"^(?:panic|[\w.]*\.(?:Fatal|Panic)\w*)$")
+BUILTINS = {"append", "cap", "clear", "close", "complex", "copy", "delete", "imag", "len", "make", "max", "min", "new",
+            "print", "println", "real", "recover", "bool", "byte", "rune", "string", "error", "int", "int8", "int16",
+            "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64", "uintptr", "float32", "float64"}
 
 
 class Src:
@@ -297,13 +300,32 @@ def handles_error(src, n):
     return bool(body) and all(error_statement(src, s) for s in body)
 
 
+def work_calls(src, n):
+    """The outermost calls under n that do real work: anything but error constructors, builtins, conversions to
+    builtin types, panics and Fatal logs. Each is a list of (line, start byte, end byte or None for the line's end)."""
+    out = []
+
+    def visit(m):
+        if m.type == "call_expression":
+            fn = src.text(m.child_by_field_name("function"))
+            if not (ERR_MAKER.fullmatch(fn + "(") or fn in BUILTINS or EXIT_CALL.match(fn)):
+                (r1, c1), (r2, c2) = m.start_point, m.end_point
+                out.append([[r + 1, c1 if r == r1 else 0, c2 if r == r2 else None] for r in range(r1, r2 + 1)])
+                return
+        for c in m.named_children:
+            visit(c)
+
+    visit(n)
+    return out
+
+
 def error_blocks(src):
-    """The line ranges of error-handling if blocks, outermost only."""
+    """Error-handling if blocks, outermost only: their line range and the calls in them that do real work."""
     out = []
 
     def visit(n):
         if n.type == "if_statement" and handles_error(src, n):
-            out.append({"start": first(n), "end": last(n)})
+            out.append({"start": first(n), "end": last(n), "calls": work_calls(src, n)})
             return
         for c in n.named_children:
             visit(c)

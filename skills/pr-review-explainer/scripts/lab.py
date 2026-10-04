@@ -10,6 +10,7 @@ Uses the spec's repo, base and github; its scenes are ignored. The code analysis
 """
 
 import argparse
+import itertools
 import json
 import os
 import re
@@ -52,28 +53,53 @@ def strip_indent(tokens):
     while out and not out[0][1].strip():
         out.pop(0)
     if out:
-        out[0] = (out[0][0], out[0][1].lstrip())
+        out[0] = (out[0][0], out[0][1].lstrip(), out[0][2])
     return out
 
 
-def one_line(tokens, start, end):
+def split_live(tokens, ranges):
+    """A line's tokens as (class, text, live), cut where the char ranges start and end; live is inside a range."""
+    out, pos = [], 0
+    for cls, text in tokens:
+        cuts = sorted({0, len(text), *[max(0, min(len(text), b - pos)) for r in ranges for b in r]})
+        out += [(cls, text[a:b], any(s <= pos + a < e for s, e in ranges)) for a, b in zip(cuts, cuts[1:])]
+        pos += len(text)
+    return out
+
+
+def render_dimmed(tokens):
+    out = []
+    for live, run in itertools.groupby(tokens, key=lambda t: t[2]):
+        html = build.render([(c, t) for c, t, _ in run], [], "")
+        out.append(html if live else f'<span class="dim">{html}</span>')
+    return "".join(out)
+
+
+def one_line(tokens, lines, block):
     """An if-block's lines joined onto one highlighted line: `if err != nil { return err }`. Lines inside a statement
-    join with a space, statements with "; ", and only the first few statements are kept."""
-    lines = [tokens[n - 1] for n in range(start, end + 1)]
-    body = [strip_indent(l) for l in lines[1:-1] if any(t.strip() for _, t in l)]
-    out, stmts = list(lines[0]) + [("", " ")], 0
+    join with a space, statements with "; ", and only the first few statements are kept. Everything but the block's
+    work calls is dimmed."""
+    ranges = {}
+    for call in block["calls"]:
+        for n, a, b in call:
+            text = lines[n - 1]
+            ranges.setdefault(n, []).extend(build.char_ranges(text, [(a, len(text.encode()) if b is None else b)]))
+    rows = [split_live(tokens[n - 1], ranges.get(n, [])) for n in range(block["start"], block["end"] + 1)]
+    body = [strip_indent(l) for l in rows[1:-1] if any(t[1].strip() for t in l)]
+    out, stmts = list(rows[0]) + [("", " ", False)], 0
     for i, line in enumerate(body):
-        text = "".join(t for _, t in line).rstrip()
+        text = "".join(t[1] for t in line).rstrip()
         out += line
         continues = text.endswith(("(", "[", "{", ",", "+", "-", "*", "/", "&&", "||"))
         if not continues:
             stmts += 1
             if stmts == ONE_LINE_STMTS and i < len(body) - 1:
-                out.append(("", "; … "))
+                out.append(("", "; … ", False))
                 break
-        out.append(("", "" if text.endswith(("(", "[", "{")) else " " if continues else "; " if i < len(body) - 1 else " "))
-    out += strip_indent(lines[-1])
-    return build.render(out, [], "")
+        sep = "" if text.endswith(("(", "[", "{")) else " " if continues else "; " if i < len(body) - 1 else " "
+        out.append(("", sep, continues and line[-1][2]))
+    out += strip_indent(rows[-1])
+    return render_dimmed(out)
 
 
 def flat_tokens(code):
@@ -217,7 +243,7 @@ class Lab:
             fd = self.repo.file(p)
             _, cn = self.changed[p]
             _, new = self.src[p]
-            toks, _ = self.tokens(p)
+            toks, lines = self.tokens(p)
             blocks = goast.error_blocks(new)
             for d in goast.declarations(new).values():
                 if d["kind"] != "func" or not any(d["start"] <= n <= d["end"] for n in cn):
@@ -226,7 +252,7 @@ class Lab:
                 if not w:
                     continue
                 shown = {r["n"] for r in w["rows"] if r["n"]}
-                folds = [{**b, "html": one_line(toks, b["start"], b["end"])} for b in blocks
+                folds = [{"start": b["start"], "end": b["end"], "html": one_line(toks, lines, b)} for b in blocks
                          if d["start"] <= b["start"] and b["end"] <= d["end"] and all(n in shown for n in range(b["start"], b["end"] + 1))]
                 if folds:
                     out.append({"file": p, "func": d["name"], "window": w, "folds": folds})
