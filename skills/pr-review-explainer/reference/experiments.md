@@ -28,12 +28,17 @@ These are Ben's ideas for visualizing a PR. He wants all of them tried, one at a
 - **Test tables beside the code**: *maybe*, "Can we put the table in line or overlaid on the code?"
 - **Happy path with "on error: …"**: *keep*, "cool, instead of writing `on error` want to write the actual code? `if err != nil { ....`".
 
-| Round 2 | What the lab shows | Verdict |
+**Round 2 verdicts:**
+- **The PR as an outline** (every hunk folded under a one-line summary the agent wrote while reviewing): *drop*, "it's easier to read the code than the english descriptions. but we should keep exploring ideas around explaining code".
+- **Types as code you can open**: *keep*, "very good! let's just reduce the empty gutter width left of the line numbers".
+- **Test cases as a table, inside the test**: *keep*, "can we not upper case the column names, and syntax highlight the cells that are code".
+- **Happy path** (only `err != nil` checks folded): *keep*, "when i expand an error line to show the full version, hide the collapsed version and let me click on the full version to collapse". He also asked whether checks like `if key == ""` and `if _, exists := seen[key]; exists` should count, and whether the LLM should decide. The answer was a broader rule in code: the check is mechanical, the result is predictable, it needs no spec work, and a wrong fold still shows the real code on one line.
+
+| Round 3 | What the lab shows | Verdict |
 |---|---|---|
-| The PR as an outline | Every hunk of every file (not only Go) folded under a one-line summary the agent writes while reviewing, in the spec's `lab.hunks`. Mechanical hunks say so, and review notes are highlighted. `lab.py --hunks` lists the hunks with tree-sitter's declaration changes as hints for writing the summaries. | pending |
-| Types as code you can open | The real declarations, starting from the types that contain the rest. A type name in a field opens that type's declaration nested under the line. Methods open the same way. Line-end badges: `pointer`, `optional` (`omitempty` pointers), `list of`, `map K →`; `iota` consts show `= N`. | pending |
-| Test cases as a table, inside the test | The test function as code, with the case literals replaced in place by the table; a bar switches between table and code. Boilerplate shared by 3+ cases shows as `…`. | pending |
-| Happy path | Each `if …err != nil { … }` joined onto one dimmed, highlighted line of its real code (`if err := f(); err != nil { return err }`), like an editor fold; click to reopen. | pending |
+| Types as code you can open | The real declarations, starting from the types that contain the rest. A type name in a field opens that type's declaration nested under the line. Methods open the same way. Line-end badges: `pointer`, `optional` (`omitempty` pointers), `list of`, `map K →`; `iota` consts show `= N`. Code with no old side drops the empty old-line-number column. | pending |
+| Test cases as a table, inside the test | The test function as code, with the case literals replaced in place by the table; a bar switches between table and code. Columns are the field names as written. Code cells are syntax-highlighted. Boilerplate shared by 3+ cases shows as `…`. | pending |
+| Happy path | Each error-handling `if` (no else) joined onto one dimmed, highlighted line of its real code, like an editor fold. It counts when the condition checks `err != nil`, or when the body only returns an error, assigns to err-named variables (`errs = multierr.Append(…)`), panics or calls a `Fatal` log, optionally ending in `continue` or `break`. Opening a fold replaces the line with the block; clicking the block folds it again. | pending |
 
 ## Tried and dropped
 
@@ -41,9 +46,12 @@ These are Ben's ideas for visualizing a PR. He wants all of them tried, one at a
 |---|---|
 | A list of all review findings at the top of read mode, each jumping to its note | "review comments at the top isn't helpful". Findings live where their code is, plus the verdict. |
 | Happy-path toggle (v1: folded Go `if err != nil { … }` blocks, matched by `^(\s*)(} else )?if .*err.* != nil {$` up to the `}` at the same indent) | Parked until Ben worked through the experiments; now back in the lab, using tree-sitter instead of the regex. |
+| Change summaries as chips (lab round 1): declarations, params, fields and call arguments from tree-sitter | "too deterministic, let the LLM do it instead", which became the outline. |
+| The PR as an outline (lab round 2): every hunk folded under a one-line summary the agent wrote | "it's easier to read the code than the english descriptions". Prose standing in for code loses to the code itself. |
 
 ## To try
 
+- **Explaining code without replacing it.** Ben: "keep exploring ideas around explaining code". Two summaries lost to the code they described (chips and the outline), so explanations should sit beside the code or inside it, not in place of it.
 - **Peek, don't jump.** Hover a symbol in the diff to see its definition or its other changed call sites in a popover; click to pin it in a side panel. Needs a symbol index; `ast-grep` or tree-sitter over the PR head.
 - **Call-flow strip as the table of contents.** Hover a node to peek that function's hunk; click to expand it under the strip. Or a sticky mini-map of the flow next to the diff, with a "you are here" marker that tracks scrolling.
 - **Switches as tables.** Render a `switch` as value → behavior (enums are in the lab with the types).

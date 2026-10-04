@@ -1,7 +1,6 @@
-"""Go source facts for the lab experiments, read with tree-sitter: how each declaration changed, struct and enum models,
-table-driven tests, and error-handling blocks. Lines are 1-based."""
+"""Go source facts for the lab experiments, read with tree-sitter: struct and enum models, table-driven tests, and
+error-handling blocks. Lines are 1-based."""
 
-import difflib
 import re
 
 import tree_sitter_go as tsgo
@@ -9,6 +8,9 @@ from tree_sitter import Language, Parser
 
 PARSER = Parser(Language(tsgo.language()))
 ERR_CHECK = re.compile(r"\b\w*[eE]rr\w*\s*!=\s*nil\b")
+ERR_NAME = re.compile(r"^\w*[eE]rr\w*$")
+ERR_MAKER = re.compile(r"\b(?:fmt\.Errorf|errors\.(?:New|Join|Wrap\w*)|multierr\.\w+)\(")
+EXIT_CALL = re.compile(r"^(?:panic|[\w.]*\.(?:Fatal|Panic)\w*)$")
 
 
 class Src:
@@ -28,9 +30,8 @@ def last(n):
     return n.end_point[0] + 1
 
 
-def flat(s, limit=None):
-    s = " ".join(s.split())
-    return s if limit is None or len(s) <= limit else s[:limit - 1] + "…"
+def flat(s):
+    return " ".join(s.split())
 
 
 def walk(n):
@@ -63,20 +64,15 @@ def trailing_comment(src, n):
     return ""
 
 
-# ---------------- declarations and how they changed ----------------
+def statements(block):
+    """A block's statements without comments; tree-sitter-go wraps them in a statement_list."""
+    kids = [c for c in block.named_children if c.type != "comment"] if block else []
+    if len(kids) == 1 and kids[0].type == "statement_list":
+        kids = [c for c in kids[0].named_children if c.type != "comment"]
+    return kids
 
-def params(src, plist):
-    out = []
-    for p in plist.named_children if plist else []:
-        if p.type not in ("parameter_declaration", "variadic_parameter_declaration"):
-            continue
-        t = src.text(p.child_by_field_name("type"))
-        if p.type == "variadic_parameter_declaration":
-            t = "..." + t
-        names = p.children_by_field_name("name") or [None]
-        out += [{"name": src.text(nm) if nm else "", "type": t, "line": first(p)} for nm in names]
-    return out
 
+# ---------------- declarations ----------------
 
 def fields(src, struct):
     out = []
@@ -103,18 +99,13 @@ def receiver_type(src, n):
 
 
 def declarations(src):
+    """Top-level functions, methods (named Recv.Name) and types."""
     out = {}
     for n in src.root.named_children:
         if n.type in ("function_declaration", "method_declaration"):
             name = src.text(n.child_by_field_name("name"))
             key = f"{receiver_type(src, n)}.{name}" if n.type == "method_declaration" else name
-            body = n.child_by_field_name("body")
-            out[f"func {key}"] = {
-                "kind": "func", "name": key, "node": n, "start": first(n), "end": last(n),
-                "params": params(src, n.child_by_field_name("parameters")),
-                "result": flat(src.text(n.child_by_field_name("result"))),
-                "body": body, "norm": flat(src.text(n)),
-            }
+            out[f"func {key}"] = {"kind": "func", "name": key, "node": n, "start": first(n), "end": last(n)}
         elif n.type == "type_declaration":
             for spec in n.named_children:
                 if spec.type not in ("type_spec", "type_alias"):
@@ -122,159 +113,10 @@ def declarations(src):
                 name = src.text(spec.child_by_field_name("name"))
                 t = spec.child_by_field_name("type")
                 info = {"kind": "type", "name": name, "node": spec, "start": first(spec), "end": last(spec),
-                        "shape": t.type, "underlying": flat(src.text(t)), "norm": flat(src.text(spec))}
+                        "underlying": flat(src.text(t))}
                 if t.type == "struct_type":
                     info["fields"] = fields(src, t)
                 out[f"type {name}"] = info
-        elif n.type in ("const_declaration", "var_declaration"):
-            kind = n.type.split("_")[0]
-            for spec in walk(n):
-                if spec.type not in ("const_spec", "var_spec"):
-                    continue
-                value = flat(src.text(spec.child_by_field_name("value")))
-                for nm in spec.children_by_field_name("name"):
-                    out[f"{kind} {src.text(nm)}"] = {"kind": kind, "name": src.text(nm), "node": spec, "start": first(spec),
-                                                     "end": last(spec), "value": value, "norm": flat(src.text(spec))}
-        elif n.type == "import_declaration":
-            for spec in walk(n):
-                if spec.type == "import_spec":
-                    path = src.text(spec.child_by_field_name("path")).strip('"')
-                    out[f"import {path}"] = {"kind": "import", "name": path, "node": spec, "start": first(spec),
-                                             "end": last(spec), "norm": flat(src.text(spec))}
-    return out
-
-
-def calls(src, body):
-    out = []
-    for n in walk(body) if body else []:
-        if n.type == "call_expression":
-            args = n.child_by_field_name("arguments")
-            out.append({"callee": flat(src.text(n.child_by_field_name("function"))), "line": first(n),
-                        "args": [{"text": flat(src.text(a)), "line": first(a)} for a in args.named_children if a.type != "comment"]})
-    return out
-
-
-def sig(d):
-    ps = ", ".join(f"{p['name']} {p['type']}".strip() for p in d["params"])
-    return f"{d['name']}({flat(ps, 60)})" + (f" {d['result']}" if d["result"] else "")
-
-
-def short_import(path):
-    return "/".join(path.split("/")[-2:])
-
-
-def chip(line, side, kind, text):
-    return {"line": line, "side": side, "kind": kind, "text": text}
-
-
-def change_chips(old, new, changed_old, changed_new):
-    """One chip per notable change, anchored to the line it is about: added and removed declarations, params, fields,
-    call arguments and imports, plus a +/- line count for function bodies."""
-    before, after = declarations(old), declarations(new)
-    enums = enum_values(new)
-    enum_counts = {t: len(v) for t, v in enums.items()}
-    members = {v["name"] for vals in enums.values() for v in vals}
-    out = []
-    for key, d in after.items():
-        if key in before:
-            continue
-        if d["kind"] == "func":
-            out.append(chip(d["start"], "new", "add", f"+ func {sig(d)}"))
-        elif d["kind"] == "type":
-            extra = f" · {len(d['fields'])} fields" if "fields" in d else ""
-            if enum_counts.get(d["name"]):
-                extra = f" · {enum_counts[d['name']]} values"
-            shape = "struct" if d["shape"] == "struct_type" else flat(d["underlying"], 30)
-            out.append(chip(d["start"], "new", "add", f"+ type {d['name']} {shape}{extra}"))
-        elif d["kind"] == "import":
-            out.append(chip(d["start"], "new", "add", f"+ import {short_import(d['name'])}"))
-        elif d["kind"] in ("const", "var") and d["name"] not in members:
-            out.append(chip(d["start"], "new", "add", f"+ {d['kind']} {d['name']}" + (f" = {flat(d['value'], 30)}" if d["value"] else "")))
-    for key, d in before.items():
-        if key not in after:
-            label = f"− func {d['name']}()" if d["kind"] == "func" else f"− {d['kind']} {short_import(d['name']) if d['kind'] == 'import' else d['name']}"
-            out.append(chip(d["start"], "old", "del", label))
-    for key, a in after.items():
-        b = before.get(key)
-        if not b or a["norm"] == b["norm"]:
-            continue
-        if a["kind"] == "func":
-            out += param_chips(b, a)
-            if a["result"] != b["result"]:
-                out.append(chip(a["start"], "new", "mod", f"~ {a['name']} returns {b['result'] or '()'} → {a['result'] or '()'}"))
-            out += call_chips(old, new, b, a, changed_new)
-            body = a["body"]
-            if body is not None:
-                plus = sorted(n for n in changed_new if first(body) <= n <= last(body))
-                minus = [n for n in changed_old if b["body"] is not None and first(b["body"]) <= n <= last(b["body"])]
-                if plus or minus:
-                    out.append({**chip(plus[0] if plus else a["start"], "new", "mod", f"{a['name']} body +{len(plus)} −{len(minus)}"),
-                                "body": {"name": a["name"], "new": plus, "old": minus}})
-        elif a["kind"] == "type" and "fields" in a and "fields" in b:
-            out += field_chips(b, a)
-        elif a["kind"] == "type":
-            out.append(chip(a["start"], "new", "mod", f"~ type {a['name']}: {flat(b['underlying'], 24)} → {flat(a['underlying'], 24)}"))
-        elif a["kind"] in ("const", "var"):
-            out.append(chip(a["start"], "new", "mod", f"~ {a['kind']} {a['name']} = {flat(a['value'], 30)}"))
-    return sorted(out, key=lambda c: (c["side"] == "old", c["line"]))
-
-
-def param_chips(b, a):
-    out = []
-    old = [(p["name"], p["type"]) for p in b["params"]]
-    new = [(p["name"], p["type"]) for p in a["params"]]
-    for op, i1, i2, j1, j2 in difflib.SequenceMatcher(a=old, b=new, autojunk=False).get_opcodes():
-        if op in ("insert", "replace"):
-            for p in a["params"][j1:j2]:
-                if op == "replace" and any(q["name"] == p["name"] for q in b["params"][i1:i2]):
-                    q = next(q for q in b["params"][i1:i2] if q["name"] == p["name"])
-                    out.append(chip(p["line"], "new", "mod", f"~ {a['name']} param {p['name']}: {q['type']} → {p['type']}"))
-                else:
-                    out.append(chip(p["line"], "new", "add", f"+ {a['name']} param {p['name']} {p['type']}".rstrip()))
-        if op in ("delete", "replace"):
-            for p in b["params"][i1:i2]:
-                if not any(q["name"] == p["name"] for q in a["params"][j1:j2]):
-                    out.append(chip(a["start"], "new", "del", f"− {a['name']} param {p['name']} {p['type']}".rstrip()))
-    return out
-
-
-def field_chips(b, a):
-    out = []
-    old = {f["name"]: f for f in b["fields"]}
-    new = {f["name"]: f for f in a["fields"]}
-    for name, f in new.items():
-        if name not in old:
-            out.append(chip(f["line"], "new", "add", f"+ {a['name']}.{name} {f['type']}"))
-        elif flat(old[name]["type"]) != flat(f["type"]):
-            out.append(chip(f["line"], "new", "mod", f"~ {a['name']}.{name}: {old[name]['type']} → {f['type']}"))
-        elif old[name]["tag"] != f["tag"]:
-            out.append(chip(f["line"], "new", "mod", f"~ {a['name']}.{name} tag"))
-    for name in old:
-        if name not in new:
-            out.append(chip(a["start"], "new", "del", f"− {a['name']}.{name}"))
-    return out
-
-
-def call_chips(old, new, b, a, changed_new):
-    """Arguments added to or removed from a call on a changed line; replaced arguments are left to the body count,
-    since an outer call around a changed inner call would otherwise report the whole inner call as replaced."""
-    out = []
-    before = {}
-    for c in calls(old, b["body"]):
-        before.setdefault(c["callee"], []).append(c)
-    seen = {}
-    for c in calls(new, a["body"]):
-        i = seen.get(c["callee"], 0)
-        seen[c["callee"]] = i + 1
-        prev = before.get(c["callee"], [])
-        if i >= len(prev) or c["line"] not in changed_new:
-            continue
-        olds, news = [x["text"] for x in prev[i]["args"]], [x["text"] for x in c["args"]]
-        for op, i1, i2, j1, j2 in difflib.SequenceMatcher(a=olds, b=news, autojunk=False).get_opcodes():
-            if op == "insert":
-                out += [chip(x["line"], "new", "add", f"{c['callee']}(): + arg {flat(x['text'], 30)}") for x in c["args"][j1:j2]]
-            elif op == "delete":
-                out += [chip(c["line"], "new", "del", f"{c['callee']}(): − arg {flat(x, 30)}") for x in olds[i1:i2]]
     return out
 
 
@@ -385,8 +227,7 @@ def cell(src, n):
 
 
 def table_tests(src):
-    """`name := []struct{...}{...}` and `map[string]struct{...}{...}` literals inside test functions, with the loop
-    that runs them."""
+    """`name := []struct{...}{...}` and `map[string]struct{...}{...}` literals inside test functions."""
     out = []
     for fn in src.root.named_children:
         if fn.type != "function_declaration":
@@ -430,13 +271,38 @@ def table_tests(src):
 
 # ---------------- error handling ----------------
 
+def error_statement(src, s):
+    """A statement whose only job is an error: returning one, recording one in an err variable, a panic, or a Fatal
+    log. os.Exit is left out because signal handlers use it to shut down cleanly."""
+    if s.type == "return_statement":
+        values = s.named_children[0].named_children if s.named_children else []
+        return any(ERR_MAKER.search(src.text(v)) or ERR_NAME.match(src.text(v)) for v in values)
+    if s.type in ("assignment_statement", "short_var_declaration"):
+        return all(ERR_NAME.match(src.text(x)) for x in s.child_by_field_name("left").named_children)
+    if s.type == "expression_statement" and s.named_children and s.named_children[0].type == "call_expression":
+        return bool(EXIT_CALL.match(src.text(s.named_children[0].child_by_field_name("function"))))
+    return False
+
+
+def handles_error(src, n):
+    """An if with no else that checks `err != nil`, or whose body does nothing but error statements, optionally
+    followed by a continue or break."""
+    if n.child_by_field_name("alternative") is not None:
+        return False
+    if ERR_CHECK.search(src.text(n.child_by_field_name("condition"))):
+        return True
+    body = statements(n.child_by_field_name("consequence"))
+    if body and body[-1].type in ("continue_statement", "break_statement"):
+        body = body[:-1]
+    return bool(body) and all(error_statement(src, s) for s in body)
+
+
 def error_blocks(src):
-    """The line ranges of `if ... err != nil { ... }` blocks with no else, outermost only."""
+    """The line ranges of error-handling if blocks, outermost only."""
     out = []
 
     def visit(n):
-        if (n.type == "if_statement" and n.child_by_field_name("alternative") is None
-                and ERR_CHECK.search(src.text(n.child_by_field_name("condition")))):
+        if n.type == "if_statement" and handles_error(src, n):
             out.append({"start": first(n), "end": last(n)})
             return
         for c in n.named_children:

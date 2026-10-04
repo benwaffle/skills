@@ -27,18 +27,10 @@
   .verdict input { flex: 1; max-width: 560px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; color: var(--fg); padding: 5px 10px; font: inherit; }
   .note-line { color: var(--dim); font-size: 13px; margin: 0 0 10px; }
   .gap-panel { margin-bottom: 12px; }
+  #read .rows.single .gut { grid-template-columns: 40px 18px; }
+  #read .rows.single .gut .ln:first-child { display: none; }
 
-  /* 1. outline */
-  .hhead.click { cursor: pointer; user-select: none; }
-  .hhead.click:hover .base { color: var(--blue); }
-  .hhead .tw { color: var(--dim); width: 10px; font-family: -apple-system, sans-serif; }
-  .hsum { padding: 7px 14px 8px 34px; background: var(--panel2); border-bottom: 1px solid var(--line); color: #c5cad6; font-size: 13.5px; line-height: 1.5; cursor: pointer; }
-  .hsum.none { color: #5d6575; font-style: italic; }
-  .hsum .rn { color: var(--amber); font-weight: 600; }
-  .hunk.closed .hbody { display: none; }
-  .hunk.closed .hsum { border-bottom: 0; }
-
-  /* 2. types as code */
+  /* 1. types as code */
   .tblock { padding: 2px 0 6px; }
   .tloc { font-family: var(--mono); font-size: 11px; color: var(--dim); padding: 6px 14px 2px; }
   #read .rows mark.xref { background: none; color: var(--blue); text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; }
@@ -48,18 +40,18 @@
   .badge { font-family: -apple-system, sans-serif; font-size: 10.5px; border-radius: 4px; padding: 0 5px; margin-right: 4px; }
   .b-opt { background: #3d3220; color: #ffd08a; } .b-list { background: #22324d; color: #9cc4ff; } .b-map { background: #33284a; color: #d3b0ff; }
   .b-ptr { background: #2b3040; color: var(--dim); } .b-val { background: #3d3220; color: #ffd08a; font-family: var(--mono); }
-  .tnest { margin: 2px 0 6px 98px; border-left: 2px solid #34405a; background: #13161d; border-radius: 0 8px 8px 0; }
+  .tnest { margin: 2px 0 6px 58px; border-left: 2px solid #34405a; background: #13161d; border-radius: 0 8px 8px 0; }
   .row.meth { color: var(--dim); font-family: -apple-system, sans-serif; font-size: 12px; }
   .row.meth .cd button { background: none; border: 0; color: var(--blue); font: 12px var(--mono); cursor: pointer; padding: 0 4px; }
   .row.gap .cd { color: #4d5466; }
 
-  /* 3. tests in the code */
+  /* 2. tests in the code */
   #read .row.tbar { cursor: pointer; color: var(--blue); font-family: -apple-system, sans-serif; font-size: 12px; }
   #read .row.tbar .sg { color: var(--blue); }
   .inl { padding: 4px 16px 8px 0; }
   .inl.off { display: none; }
   .ttable { border-collapse: collapse; width: 100%; max-width: 1100px; font-size: 13px; background: #13161d; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-  .ttable th { text-align: left; color: var(--dim); font: 500 10.5px -apple-system, sans-serif; letter-spacing: 1px; text-transform: uppercase; padding: 7px 12px; border-bottom: 1px solid var(--line); }
+  .ttable th { text-align: left; color: var(--dim); font: 500 12px var(--mono); padding: 7px 12px; border-bottom: 1px solid var(--line); }
   .ttable td { padding: 5px 12px; border-bottom: 1px solid #20242f; vertical-align: top; white-space: normal; font-family: -apple-system, sans-serif; }
   .ttable tr:last-child td { border-bottom: 0; }
   .ttable td.num { color: #4d5466; font-family: var(--mono); font-size: 11.5px; width: 24px; text-align: right; padding-right: 0; }
@@ -71,11 +63,15 @@
   .ttable tr.added td.num { box-shadow: inset 3px 0 0 var(--green); } .ttable tr.changed td.num { box-shadow: inset 3px 0 0 var(--amber); }
   .ttable tr:hover td { background: rgba(110,170,255,.05); }
 
-  /* 4. happy path */
+  /* 3. happy path */
   #read .row.hp { cursor: pointer; }
   .row.hp .sg { color: var(--violet); }
   .row.hp .cd { opacity: .5; }
-  .row.hp:hover .cd, .row.hp.open .cd { opacity: .9; }
+  .row.hp:hover .cd { opacity: .9; }
+  .hpopen { cursor: pointer; }
+  .hpopen .gut { box-shadow: inset 2px 0 0 var(--violet); }
+  .hpopen:hover { background: rgba(178,140,255,.07); }
+  .hpopen:hover .gut { box-shadow: inset 4px 0 0 var(--violet); }
   .hhead .count { color: var(--dim); margin-left: auto; font-size: 12px; }
 
   #verdicts textarea { width: 100%; max-width: 900px; height: 110px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; color: var(--fg); font: 13px var(--mono); padding: 10px; }
@@ -114,8 +110,11 @@ function markRow(sign, html, cls) {
 function head(w, extra = '') {
   return el('div', 'hhead', `<a href="${esc(w.url)}" target="_blank" rel="noopener">${splitPath(w.file)}</a>${w.isNew ? '<span class="newf">new file</span>' : ''}${extra}<span class="rng">${w.range}</span>`);
 }
+// With no old line numbers in view, the old-number column is dropped instead of left blank.
+const rowsList = rows => el('div', 'rows' + (rows.every(r => r.o == null) ? ' single' : ''));
+const gutterWidth = list => list.classList.contains('single') ? 58 : 98;
 function rowsBox(rows, isNew) {
-  const body = el('div', 'hbody'), list = el('div', 'rows');
+  const body = el('div', 'hbody'), list = rowsList(rows);
   rows.forEach(r => list.appendChild(rowEl(r, isNew)));
   body.appendChild(list);
   return body;
@@ -127,36 +126,7 @@ function hunk(w) {
 }
 const panel = children => { const p = el('div', 'rcode gap-panel'); children.forEach(c => c && p.appendChild(c)); return p; };
 
-// ================= 1. the PR as an outline, one written summary per hunk =================
-function outlineView() {
-  const root = el('div');
-  DATA.outline.forEach(f => {
-    const p = el('div', 'rcode gap-panel');
-    f.hunks.forEach(w => {
-      const box = el('div', 'hunk closed');
-      const h = head(w);
-      h.classList.add('click');
-      const tw = el('span', 'tw', '▸');
-      h.prepend(tw);
-      const flip = () => { const open = box.classList.toggle('closed') === false; tw.textContent = open ? '▾' : '▸'; };
-      h.onclick = e => { if (!e.target.closest('a')) flip(); };
-      const sum = el('div', 'hsum' + (w.summary ? '' : ' none'),
-        w.summary ? esc(w.summary).replace(/Review note:?/g, m => `<span class="rn">${m}</span>`) : 'no summary written for this hunk');
-      sum.onclick = flip;
-      box.append(h, sum, rowsBox(w.rows, w.isNew));
-      p.appendChild(box);
-    });
-    root.appendChild(p);
-  });
-  return root;
-}
-function outlineToday() {
-  const root = el('div');
-  DATA.outline.forEach(f => root.appendChild(panel(f.hunks.map(hunk))));
-  return root;
-}
-
-// ================= 2. types: the real code, with types that open in place =================
+// ================= 1. types: the real code, with types that open in place =================
 const T = DATA.types.types;
 function badges(f) {
   return f.mods.map(m => {
@@ -169,7 +139,7 @@ function typeBlock(name, seen) {
   const t = T[name], inner = new Set([...seen, name]);
   const box = el('div', 'tblock');
   box.appendChild(el('div', 'tloc', `${esc(t.file)}:${t.line}`));
-  const list = el('div', 'rows');
+  const list = rowsList(t.rows.filter(r => !r.gap));
   const fields = {}, values = {};
   (t.fields || []).forEach(f => (fields[f.line] ||= []).push(f));
   (t.values || []).forEach(v => (values[v.line] ||= []).push(v));
@@ -204,7 +174,7 @@ function typeBlock(name, seen) {
         if (open) { open.remove(); b.textContent = `▸ ${m.name}()`; return; }
         const nest = el('div', 'tnest');
         nest.dataset.method = m.name;
-        const inner = el('div', 'rows');
+        const inner = rowsList(m.rows);
         m.rows.forEach(r => inner.appendChild(rowEl(r, t.isNew)));
         nest.appendChild(inner);
         const after = $$('.tnest[data-method]', list).at(-1) || row;
@@ -229,12 +199,23 @@ function typesView() {
 }
 function typesToday() { return panel(DATA.types.today.map(hunk)); }
 
-// ================= 3. table-driven tests: the table where the cases are =================
+// ================= 2. table-driven tests: the table where the cases are =================
 const CELL_MAX = 72, PREFIX_MIN = 24, PREFIX_ROWS = 3, REST_MIN = 16;
+const flatOf = c => c.toks.map(t => t[1]).join('');
+// Characters a to b of a code cell's one-line form, highlighted.
+function tokSlice(toks, a, b = Infinity) {
+  let pos = 0, out = '';
+  toks.forEach(([cls, text]) => {
+    const s = Math.max(a, pos) - pos, e = Math.min(b, pos + text.length) - pos;
+    if (s < e) out += cls ? `<span class="${cls}">${esc(text.slice(s, e))}</span>` : esc(text.slice(s, e));
+    pos += text.length;
+  });
+  return out;
+}
 // The longest start a cell shares with at least two other rows in its column, cut back to a token boundary: in a test
 // table that part is boilerplate, and the rest is what makes the case different.
 function sharedPrefixes(cells) {
-  const flat = cells.map(c => c && c.str == null ? c.code.replace(/\s+/g, ' ') : null);
+  const flat = cells.map(c => c && c.str == null ? flatOf(c) : null);
   return flat.map((a, i) => {
     if (a == null) return 0;
     const shared = flat.map((b, j) => {
@@ -255,15 +236,15 @@ function testCell(c, col, prefix) {
     return el('td', col === 'name' || col === 'desc' ? '' : 'str', esc(c.str));
   }
   const td = el('td', 'code');
-  const full = c.code, flat = full.replace(/\s+/g, ' ');
-  const rest = flat.slice(prefix);
+  const flat = flatOf(c);
   const pre = prefix ? `<span class="pre" title="${esc(flat.slice(0, prefix))}">…</span>` : '';
-  if (rest.length <= CELL_MAX) { td.innerHTML = pre + esc(rest); return td; }
-  const text = el('span', '', pre + esc(rest.slice(0, CELL_MAX - 1) + '…'));
+  if (flat.length - prefix <= CELL_MAX) { td.innerHTML = pre + tokSlice(c.toks, prefix); return td; }
+  const short = pre + tokSlice(c.toks, prefix, prefix + CELL_MAX - 1) + '…';
+  const text = el('span', '', short);
   const more = el('span', 'more', 'more');
   more.onclick = () => {
     const open = more.textContent === 'less';
-    text.innerHTML = open ? pre + esc(rest.slice(0, CELL_MAX - 1) + '…') : esc(full.replace(/^\t+/gm, '  '));
+    text.innerHTML = open ? short : c.html ?? tokSlice(c.toks, 0);
     more.textContent = open ? 'more' : 'less';
   };
   td.append(text, more);
@@ -295,7 +276,7 @@ function testsView() {
     const marks = t.isNew ? 'new test' : [added && `${added} added`, changed && `${changed} changed`].filter(Boolean).join(', ') || 'cases unchanged';
     box.appendChild(head(w, `<span class="count">${esc(t.func)} · ${t.rows.length} cases · ${marks}</span>`));
     $('.rng', box).remove();
-    const list = el('div', 'rows');
+    const list = rowsList(w.rows);
     const caseRows = [];
     let prev = null, bar = null, inl = null;
     w.rows.forEach(r => {
@@ -305,7 +286,7 @@ function testsView() {
         const n = t.rows.length;
         bar = markRow('⊞', `${n} cases as a table · show the code`, 'tbar');
         inl = el('div', 'inl');
-        inl.style.paddingLeft = `calc(98px + ${indentOf(r.h).replace(/\t/g, '    ').length}ch)`;
+        inl.style.paddingLeft = `calc(${gutterWidth(list)}px + ${indentOf(r.h).replace(/\t/g, '    ').length}ch)`;
         inl.appendChild(caseTable(t));
         bar.onclick = () => {
           const code = inl.classList.toggle('off');
@@ -327,39 +308,37 @@ function testsView() {
 }
 function testsToday() { return panel(DATA.tests.map(t => hunk(t.window))); }
 
-// ================= 4. happy path: error handling folded to one line of real code =================
+// ================= 3. happy path: error handling folded to one line of real code =================
 function happyView() {
   const root = el('div');
   DATA.happy.forEach(ex => {
     const w = ex.window;
     const box = el('div', 'hunk');
-    const list = el('div', 'rows');
+    const list = rowsList(w.rows);
     let fold = null, group = null, hidden = 0;
     w.rows.forEach(r => {
       const starts = r.n != null ? ex.folds.find(f => f.start === r.n) : null;
       if (starts) {
         fold = starts;
-        const n = starts.end - starts.start + 1, members = [];
-        group = members;
-        const row = el('div', 'row ctx hp');
+        const row = el('div', 'row ctx hp'), full = el('div', 'hpopen');
         const gut = el('span', 'gut');
         gut.append(el('span', 'ln', ''), el('span', 'ln', r.n), el('span', 'sg', '⤷'));
         row.append(gut, el('span', 'cd', starts.html));
-        row.title = `${n} lines of error handling; click to open`;
-        row.onclick = () => {
-          const open = row.classList.toggle('open');
-          members.forEach(x => x.style.display = open ? '' : 'none');
-          row.title = open ? 'click to fold the error handling again' : `${n} lines of error handling; click to open`;
-        };
-        list.appendChild(row);
+        row.title = `${starts.end - starts.start + 1} lines of error handling; click to open`;
+        full.title = 'click to fold the error handling again';
+        full.style.display = 'none';
+        row.onclick = () => { row.style.display = 'none'; full.style.display = ''; };
+        full.onclick = () => { full.style.display = 'none'; row.style.display = ''; };
+        list.append(row, full);
+        group = full;
       }
       const row = rowEl(r, w.isNew);
       if (fold && (r.n == null || r.n <= fold.end)) {
-        row.style.display = 'none';
-        group.push(row);
+        group.appendChild(row);
         hidden++;
+      } else {
+        list.appendChild(row);
       }
-      list.appendChild(row);
       if (fold && r.n === fold.end) fold = null;
     });
     const shown = w.rows.length - hidden + ex.folds.length;
@@ -380,16 +359,14 @@ function happyToday() {
 
 // ================= page =================
 const EXPS = [
-  { id: 'outline', title: 'The PR as an outline', exp: outlineView, today: outlineToday, n: () => DATA.outline.length,
-    why: 'Every hunk folded under a one-line summary the reviewer wrote while reading the PR: what it does, whether it is mechanical, and any review note. Click a header or a summary to open the hunk, and again to fold it. <b>Look for:</b> can you tell from the summaries alone which hunks need your attention?' },
   { id: 'types', title: 'Types as code you can open', exp: typesView, today: typesToday, n: () => DATA.types.featured.length,
     why: 'The real declarations, starting from the types that contain the rest. An underlined type opens its own declaration in place, nested under the line that uses it; a method opens its code the same way. At the end of a field\'s line, <b>pointer</b>, <b>optional</b> (a pointer marked <code>omitempty</code>), <b>list of</b> and <b>map</b> spell out the type, and an <code>iota</code> constant shows its value. <b>Look for:</b> does following the model in place beat jumping between declarations?' },
   { id: 'tests', title: 'Test cases as a table, inside the test', exp: testsView, today: testsToday, n: () => DATA.tests.length,
     why: 'The test function as code, with its case literals replaced by a table where they sit: one row per case, one column per field, boilerplate shared by several cases shown as <b>…</b> (hover for it), long values folded behind <b>more</b>. The bar above the table switches between the table and the code. <b>Look for:</b> can you see what is covered, and what isn\'t, without leaving the code?' },
   { id: 'happy', title: 'Happy path', exp: happyView, today: happyToday, n: () => DATA.happy.length,
-    why: 'Each <code>if err != nil { … }</code> block is joined onto one dimmed line of its real code, like an editor\'s fold, so the main flow reads straight through. Click a folded line to open it, and again to fold it. <b>Look for:</b> does the main flow read better, and is the one-line form enough to trust the error handling?' },
+    why: 'Each error-handling <code>if</code> is joined onto one dimmed line of its real code, like an editor\'s fold, so the main flow reads straight through. An <code>if</code> counts when it checks <code>err != nil</code>, or when its body only returns an error, records one in an <code>err</code> variable (then maybe <code>continue</code>s), or panics. Click a folded line to open the block, and click the open block to fold it again. <b>Look for:</b> does the main flow read better, and is the one-line form enough to trust the error handling?' },
 ];
-const KEY = `lab-verdicts:${META.github}#${META.pr}:round2`;
+const KEY = `lab-verdicts:${META.github}#${META.pr}:round3`;
 // Sandboxed iframes (bb's inline viewer) throw on any localStorage access; verdicts then last only for the visit.
 const store = (() => { try { localStorage.getItem(KEY); return localStorage; } catch { return null; } })();
 const verdicts = JSON.parse(store?.getItem(KEY) || '{}');
@@ -448,7 +425,7 @@ const only = q.get('only'), startView = q.get('view') === 'today' ? 'today' : 'e
 document.title = `Diff experiments · ${META.title}`;
 $('#rtitle').innerHTML = `Diff experiments<small>${esc(META.kicker)} · ${esc(META.title)}</small>`;
 const body = $('#rbody');
-if (!only) body.appendChild(el('p', 'lab-intro', 'Round 2: four ways to render a diff, reworked from your verdicts and tried on this PR\'s own code. Flip <b>Today</b> and <b>Experiment</b> to compare, then leave a verdict; verdicts collect at the bottom to paste back.'));
+if (!only) body.appendChild(el('p', 'lab-intro', 'Round 3: the three renderings you kept, with your round 2 notes applied, tried on this PR\'s own code. Flip <b>Today</b> and <b>Experiment</b> to compare, then leave a verdict; verdicts collect at the bottom to paste back.'));
 EXPS.forEach((x, i) => { if (!only || only === x.id) body.appendChild(section(x, i, startView)); });
 if (!only) {
   const sec = el('section', 'rsec', '<div class="rhead"><span class="kicker">Verdicts</span><h2>To paste back</h2></div>');

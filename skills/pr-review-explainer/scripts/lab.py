@@ -5,17 +5,14 @@
 """Build a lab page of diff-rendering experiments for a PR, each shown on the PR's own code next to today's rendering.
 
     uv run lab.py spec.yaml [--out PATH]
-    uv run lab.py spec.yaml --hunks      # list every hunk, with hints, for writing the spec's `lab.hunks` summaries
 
-Uses the spec's repo, base and github, plus its optional `lab:` section; its scenes are ignored. The code analysis
-covers Go files only; the hunk outline covers every file.
+Uses the spec's repo, base and github; its scenes are ignored. The code analysis covers Go files only.
 """
 
 import argparse
 import json
 import os
 import re
-import sys
 
 import yaml
 
@@ -79,9 +76,29 @@ def one_line(tokens, start, end):
     return build.render(out, [], "")
 
 
+def flat_tokens(code):
+    """A Go expression's tokens with every whitespace run collapsed to one space, for a table cell's one-line form."""
+    out = []
+    for ttype, value in build.lexer_for("cell.go").get_tokens(code):
+        text = re.sub(r"\s+", " ", value)
+        if out and out[-1][1].endswith(" ") and text.startswith(" "):
+            text = text[1:]
+        if text:
+            out.append([build.css_class(ttype), text])
+    return out
+
+
+def full_html(code):
+    """A multi-line Go expression, highlighted, with the indentation its lines share removed and tabs as two spaces."""
+    lines = code.split("\n")
+    indent = min((len(l) - len(l.lstrip("\t")) for l in lines[1:] if l.strip()), default=0)
+    lines = [lines[0]] + [re.sub(r"^\t+", lambda m: "  " * len(m.group()), l[indent:]) for l in lines[1:]]
+    return "\n".join(build.render(toks, [], "") for toks in build.tokens_by_line("\n".join(lines), "cell.go"))
+
+
 class Lab:
-    def __init__(self, repo, spec_lab):
-        self.repo, self.spec_lab = repo, spec_lab or {}
+    def __init__(self, repo):
+        self.repo = repo
         self.all_paths = [s["path"] for s in repo.numstat()]
         self.paths = sorted((p for p in self.all_paths if p.endswith(".go")), key=lambda p: p.endswith("_test.go"))
         self.src, self.struct, self.changed, self._tokens = {}, {}, {}, {}
@@ -109,62 +126,7 @@ class Lab:
             rows.append({"k": "+" if is_new or n in changed else " ", "o": None, "n": n, "h": build.render(toks[n - 1], cr, "xref")})
         return rows
 
-    # ---------------- 1. hunk outline ----------------
-
-    def hunk_index(self, entry):
-        fd = self.repo.file(entry["file"])
-        if not fd.hunks:
-            sys.exit(f"lab.hunks: {entry['file']} has no changes")
-        if "hunk" in entry:
-            return entry["hunk"]
-        if "from" in entry:
-            hi = next((i for i, rows in enumerate(fd.hunks) if any(build.matches(r, entry["from"]) for r in rows)), None)
-            if hi is None:
-                sys.exit(f"lab.hunks: {entry['file']}: no hunk has {entry['from']!r}")
-            return hi
-        if len(fd.hunks) == 1:
-            return 0
-        sys.exit(f"lab.hunks: {entry['file']} has {len(fd.hunks)} hunks: give `from` or `hunk`")
-
-    def summaries(self):
-        out = {}
-        for e in self.spec_lab.get("hunks", []):
-            out[(e["file"], self.hunk_index(e))] = e["text"]
-        return out
-
-    def outline(self):
-        summaries = self.summaries()
-        out = []
-        for p in self.all_paths:
-            fd = self.repo.file(p)
-            hunks = [{**fd.window([dict(r) for r in rows], self.struct[p][hi]), "summary": summaries.get((p, hi))}
-                     for hi, rows in enumerate(fd.hunks)]
-            out.append({"file": p, "isNew": fd.is_new, "hunks": hunks})
-        return out
-
-    def list_hunks(self):
-        """Every hunk with a few changed lines and the declaration changes in it, to write summaries from."""
-        summaries = self.summaries()
-        for p in self.all_paths:
-            fd = self.repo.file(p)
-            chips = []
-            if p in self.src:
-                co, cn = self.changed[p]
-                chips = goast.change_chips(*self.src[p], co, cn)
-            print(p + ("  (new file)" if fd.is_new else ""))
-            for hi, rows in enumerate(self.struct[p]):
-                news = {r["n"] for r in fd.hunks[hi] if r["n"]}
-                nums = [r["n"] or r["o"] for r in rows if r["n"] or r["o"]]
-                plus, minus = sum(r["k"] in "+±" for r in rows), sum(r["k"] == "-" for r in rows)
-                have = "summarized" if (p, hi) in summaries else "NO SUMMARY"
-                print(f"  [hunk {hi}] L{min(nums)}-{max(nums)}  +{plus} −{minus}  {have}")
-                for c in chips:
-                    if c["side"] == "new" and c["line"] in news:
-                        print(f"      · {c['text']}")
-                for r in [r for r in rows if r["k"] in "+±-"][:4]:
-                    print(f"      {r['k']} {r['text'].strip()[:100]}")
-
-    # ---------------- 2. types ----------------
+    # ---------------- 1. types ----------------
 
     def types(self):
         known, featured, today = {}, [], []
@@ -220,7 +182,7 @@ class Lab:
         roots = [n for n in featured if n not in referenced]
         return {"types": out, "featured": featured, "roots": roots, "today": today}
 
-    # ---------------- 3. table-driven tests ----------------
+    # ---------------- 2. table-driven tests ----------------
 
     def tests(self):
         out = []
@@ -235,12 +197,17 @@ class Lab:
                 for r in t["rows"]:
                     span = set(range(r["line"], r["end"] + 1))
                     r["mark"] = None if fd.is_new else ("added" if span <= cn else "changed" if span & cn else None)
+                    for c in r["cells"].values():
+                        if c["str"] is None or c["multiline"]:
+                            c["toks"] = flat_tokens(c["code"])
+                            if c["multiline"]:
+                                c["html"] = full_html(c["code"])
                 w = range_window(fd, *t["fn"])
                 if w:
                     out.append({**t, "file": p, "isNew": fd.is_new, "window": w})
         return out
 
-    # ---------------- 4. happy path ----------------
+    # ---------------- 3. happy path ----------------
 
     def happy(self):
         out = []
@@ -271,7 +238,6 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("spec")
     ap.add_argument("--out")
-    ap.add_argument("--hunks", action="store_true", help="list every hunk for writing summaries, then exit")
     args = ap.parse_args()
     with open(args.spec) as f:
         spec = yaml.safe_load(f)
@@ -279,14 +245,11 @@ def main():
     if not os.path.isabs(repo_path):
         repo_path = os.path.join(os.path.dirname(os.path.abspath(args.spec)), repo_path)
     repo = build.Repo(repo_path, spec.get("base", "origin/main"), spec["github"])
-    lab = Lab(repo, spec.get("lab"))
-    if args.hunks:
-        lab.list_hunks()
-        return
+    lab = Lab(repo)
     data = {
         "meta": {"title": spec["title"], "kicker": spec.get("kicker", f"PR #{spec.get('pr')}"), "pr": spec.get("pr"),
                  "github": spec["github"]},
-        "outline": lab.outline(), "types": lab.types(), "tests": lab.tests(), "happy": lab.happy(),
+        "types": lab.types(), "tests": lab.tests(), "happy": lab.happy(),
     }
     with open(os.path.join(os.path.dirname(HERE), "assets", "template.html")) as f:
         css = re.search(r"<style>(.*?)</style>", f.read(), re.S).group(1)
@@ -296,10 +259,8 @@ def main():
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     with open(out, "w") as f:
         f.write(page)
-    hunks = sum(len(f["hunks"]) for f in data["outline"])
-    summarized = sum(1 for f in data["outline"] for h in f["hunks"] if h["summary"])
-    print(f"outline {summarized}/{hunks} hunks summarized, {len(data['types']['featured'])} types, {len(data['tests'])} test tables, "
-          f"{len(data['happy'])} happy-path functions; {len(page) / 1e6:.1f} MB -> {out}")
+    print(f"{len(data['types']['featured'])} types, {len(data['tests'])} test tables, {len(data['happy'])} happy-path functions; "
+          f"{len(page) / 1e6:.1f} MB -> {out}")
 
 
 if __name__ == "__main__":

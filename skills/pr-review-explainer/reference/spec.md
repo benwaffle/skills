@@ -19,11 +19,6 @@ lexicon:                         # PR-only pronunciations (reusable ones go in s
   cfg: spell                     # read letter by letter, by every voice
   Acme: { ipa: "ˈækmi", text: "acky" }   # ipa for Kokoro, a text respelling for Breeze; give both
   Zorp: "zˈɔːɹp"                 # a bare string is IPA, so only Kokoro uses it
-lab:                             # optional: input for scripts/lab.py only
-  hunks:                         # one summary per hunk for the lab's outline; `lab.py --hunks` lists them
-    - { file: cmd/main.go, hunk: 1, text: "Loads the config at boot and passes it to the server." }
-    - { file: api/server.go, from: "cache *Cache", text: "Mechanical: the constructor takes the cache." }
-    - { file: api/cache.go, text: "The new cache. Review note: entries never expire." }   # a file with one hunk needs neither
 
 scenes:
   - kind: stat | code | summary
