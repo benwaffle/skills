@@ -388,10 +388,12 @@ const EXPS = [
     why: 'Each <code>if err != nil { … }</code> block folds into one line: the call it guards, then what it does on error, in grey. Click a folded line to open it again. <b>Look for:</b> does the main flow read better, and do you miss anything from the folded lines?' },
 ];
 const KEY = `lab-verdicts:${META.github}#${META.pr}`;
-const verdicts = JSON.parse(localStorage.getItem(KEY) || '{}');
+// Sandboxed iframes (bb's inline viewer) throw on any localStorage access; verdicts then last only for the visit.
+const store = (() => { try { localStorage.getItem(KEY); return localStorage; } catch { return null; } })();
+const verdicts = JSON.parse(store?.getItem(KEY) || '{}');
 const MARK = { keep: '✓', maybe: '?', drop: '✗' };
 function saveVerdicts() {
-  localStorage.setItem(KEY, JSON.stringify(verdicts));
+  store?.setItem(KEY, JSON.stringify(verdicts));
   $('#toc').innerHTML = EXPS.map(x => `<a href="#x-${x.id}">${esc(x.title)}${verdicts[x.id]?.v ? `<span class="v ${verdicts[x.id].v}">${MARK[verdicts[x.id].v]}</span>` : ''}</a>`).join('');
   const ta = $('#verdicts textarea');
   if (ta) ta.value = EXPS.map(x => `${x.title}: ${verdicts[x.id]?.v || '(no verdict)'}${verdicts[x.id]?.note ? ' — ' + verdicts[x.id].note : ''}`).join('\n');

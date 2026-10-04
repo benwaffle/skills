@@ -62,6 +62,7 @@ These come from Ben's feedback on earlier explainers.
 
 - Anything that expands on click must collapse again from the same control.
 - Links open in a new tab; nothing in the page scrolls you away from where you are.
+- Pages must work in a sandboxed iframe, which is how the inline viewer shows them: any `localStorage` access throws there, so guard it and fall back to memory.
 
 ## Lab
 

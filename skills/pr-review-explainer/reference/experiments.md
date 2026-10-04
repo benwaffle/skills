@@ -67,4 +67,5 @@ Both rounds play at the same words per minute, and switching voices mid-line pic
 - Diff against `merge-base`, not `origin/main`: a moved main shows unrelated changes.
 - Coined words like "or-ed" and "and-ed" trip up every TTS engine. Write "joined with OR" instead.
 - Small autoregressive TTS models can run away: Soprano produced 30 s of wordless noise in place of half a sentence. A transcript check catches it. Look for a long stretch with no recognized words, not just a word error rate.
+- The inline viewer shows pages in an iframe sandboxed without `allow-same-origin`, where even reading `localStorage` throws and stops the script. Guard it.
 - WebM written to a pipe has no duration (`audio.duration` is Infinity, so seeking breaks). Have ffmpeg write a file.
