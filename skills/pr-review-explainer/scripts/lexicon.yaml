@@ -36,6 +36,13 @@ spell:
   - ULR
   - AIR
   - PUR
+  - ULA
+  - CLR
+  - CLA
+  - RTR
+  - RTA
+  - MSISDN
+  - UE
   - NOR
   - SAR
   - SAA
@@ -66,6 +73,7 @@ ipa:
   SIP: "sˈɪp"
   TAS: "tˈæs"
   IMSI: "ˈɪmzi"
+  IMSIs: "ˈɪmziz"
   S6a: "ˌɛs sˌɪks ˈeɪ"
   S6d: "ˌɛs sˌɪks dˈiː"
   Cx: "sˌiː ˈɛks"
@@ -77,6 +85,7 @@ ipa:
   AvpSpec: "ˌeɪvˌiːpˈiː spˈɛk"
   VoLTE: "vˈoʊltiː"
   Diameter: "daɪˈæmɪtɚ"
+  Raemis: "ɹˈeɪmɪs"
   multierr: "mˈʌltiː ˈɛɹɚ"
   difftastic: "dɪftˈæstɪk"
 
@@ -90,6 +99,7 @@ text:
   SIP: "sip"
   TAS: "tass"
   IMSI: "imzee"
+  IMSIs: "imzees"
   S6a: "S six A"
   S6d: "S six D"
   Cx: "C X"
@@ -102,3 +112,4 @@ text:
   VoLTE: "vole-tee"
   multierr: "multi-err"
   difftastic: "diff-tastic"
+  Raemis: "ray-miss"

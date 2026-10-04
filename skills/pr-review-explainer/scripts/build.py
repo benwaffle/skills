@@ -284,9 +284,10 @@ def matches(row, marker):
         kinds, marker = "-", marker[2:]
     if kinds and row["k"] not in kinds:
         return False
+    text = row.get("text", "")
     if marker.startswith("re:"):
-        return re.search(marker[3:], row["text"]) is not None
-    return marker in row["text"]
+        return re.search(marker[3:], text) is not None
+    return marker in text
 
 
 def find(rows, marker, after=0, what="marker"):
