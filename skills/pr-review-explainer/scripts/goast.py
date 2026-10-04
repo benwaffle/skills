@@ -48,6 +48,14 @@ def doc_before(src, n):
     return " ".join(lines)
 
 
+def doc_start(n):
+    """The first line of the comment block directly above a declaration, or the declaration's own line."""
+    line, prev = first(n), n.prev_named_sibling
+    while prev is not None and prev.type == "comment" and last(prev) == line - 1:
+        line, prev = first(prev), prev.prev_named_sibling
+    return line
+
+
 def trailing_comment(src, n):
     nxt = n.next_named_sibling
     if nxt is not None and nxt.type == "comment" and first(nxt) == last(n):
@@ -273,7 +281,8 @@ def call_chips(old, new, b, a, changed_new):
 # ---------------- types: structs and enums ----------------
 
 def type_ref(src, t, known):
-    """A field type as wrappers around a base: *T a pointer, []T a list, map[K]V a map; `ref` names a known type."""
+    """A field type as wrappers around a base: *T a pointer, []T a list, map[K]V a map; `ref` names a known type, and
+    `span` is the base's (line, start byte, end byte) within its line."""
     mods = []
     while t is not None and t.type in ("pointer_type", "slice_type", "array_type", "map_type", "parenthesized_type"):
         if t.type == "pointer_type":
@@ -288,7 +297,9 @@ def type_ref(src, t, known):
         else:
             t = t.named_children[0]
     base = src.text(t)
-    return {"base": base, "mods": mods, "ref": base if base in known else None}
+    name = base.split(".")[-1]
+    span = [first(t), t.start_point[1], t.end_point[1]] if first(t) == last(t) else None
+    return {"base": base, "mods": mods, "ref": name if name in known else None, "span": span}
 
 
 def xml_name(tag):
@@ -300,7 +311,9 @@ def xml_name(tag):
 
 
 def enum_values(src):
-    """Typed constants per type, with iota expanded: {type: [{name, value, doc, line}]}."""
+    """Typed constants per type, with iota expanded: {type: [{name, value, derived, doc, line, block}]}. `derived` is set
+    when the source doesn't spell the value out (iota, or a spec repeating the one above); `block` is the const
+    declaration's line range."""
     out = {}
     for n in src.root.named_children:
         if n.type != "const_declaration":
@@ -318,7 +331,8 @@ def enum_values(src):
             if re.fullmatch(r"[\d\s+*-]+", value):
                 value = str(eval(value))  # constant integer arithmetic from iota offsets, digits and operators only
             for nm in spec.children_by_field_name("name"):
-                out.setdefault(cur, []).append({"name": src.text(nm), "value": value, "line": first(spec),
+                out.setdefault(cur, []).append({"name": src.text(nm), "value": value, "derived": v is None or "iota" in expr,
+                                                "line": first(spec), "block": [first(n), last(n)],
                                                 "doc": doc_before(src, spec) or trailing_comment(src, spec)})
     return out
 
@@ -336,11 +350,12 @@ def types(files):
         for key, d in declarations(src).items():
             if d["kind"] == "func" and "." in d["name"]:
                 recv, name = d["name"].split(".", 1)
-                methods.setdefault(recv, []).append(name)
+                methods.setdefault(recv, []).append({"name": name, "file": path, "start": doc_start(d["node"]), "end": d["end"]})
             if d["kind"] != "type":
                 continue
-            info = {"name": d["name"], "file": path, "line": d["start"], "end": d["end"],
-                    "doc": doc_before(src, d["node"].parent) or doc_before(src, d["node"]), "underlying": d["underlying"]}
+            decl = d["node"].parent if d["node"].parent.type == "type_declaration" else d["node"]
+            info = {"name": d["name"], "file": path, "line": d["start"], "end": d["end"], "code": [doc_start(decl), last(decl)],
+                    "doc": doc_before(src, decl), "underlying": d["underlying"]}
             if "fields" in d:
                 info["fields"] = [{"name": f["name"], "type": f["type"], "line": f["line"], "embedded": f.get("embedded", False), "doc": f["doc"],
                                    "xml": xml_name(f["tag"]), **type_ref(src, f["tnode"], names)} for f in d["fields"]]
@@ -405,33 +420,25 @@ def table_tests(src):
                     elif i + keyed < len(cols):
                         cells[cols[i + keyed]] = cell(src, c)
                 rows.append({"line": first(el), "end": last(el), "cells": cells})
+            if not rows:
+                continue
             var = src.text(n.child_by_field_name("left"))
-            loop = next((f for f in walk(fn) if f.type == "for_statement" and re.search(rf"\brange\s+{re.escape(var)}\b", src.text(f).split("{", 1)[0])), None)
             out.append({"func": fname, "var": var, "line": first(n), "end": last(n), "columns": cols, "rows": rows,
-                        "loop": [first(loop), last(loop)] if loop else None})
+                        "fn": [doc_start(fn), last(fn)], "cases": [rows[0]["line"], rows[-1]["end"]]})
     return out
 
 
 # ---------------- error handling ----------------
 
 def error_blocks(src):
-    """`if ... err != nil { ... }` blocks, outermost only, each with the call it guards and what it does on error."""
+    """The line ranges of `if ... err != nil { ... }` blocks with no else, outermost only."""
     out = []
 
     def visit(n):
-        if n.type == "if_statement" and ERR_CHECK.search(src.text(n.child_by_field_name("condition"))):
-            cons = n.child_by_field_name("consequence")
-            stmts = [s for s in cons.named_children if s.type != "comment"] if cons else []
-            action = flat(src.text(stmts[0]), 70) if stmts else ""
-            if len(stmts) > 1:
-                action += f" (+{len(stmts) - 1} more)"
-            init = n.child_by_field_name("initializer")
-            end = cons.end_point[0] + 1 if cons else last(n)
-            alt = n.child_by_field_name("alternative")
-            if alt is None:
-                out.append({"start": first(n), "end": end, "init": flat(src.text(init)) if init else None,
-                            "cond": flat(src.text(n.child_by_field_name("condition"))), "action": action})
-                return
+        if (n.type == "if_statement" and n.child_by_field_name("alternative") is None
+                and ERR_CHECK.search(src.text(n.child_by_field_name("condition")))):
+            out.append({"start": first(n), "end": last(n)})
+            return
         for c in n.named_children:
             visit(c)
 

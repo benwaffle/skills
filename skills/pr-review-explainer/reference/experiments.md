@@ -18,16 +18,22 @@ These are Ben's ideas for visualizing a PR. He wants all of them tried, one at a
 | Everything in the PR reachable | read mode's "rest of the diff" | pending |
 | Message ladder: who sends what to whom, old vs new identity in different chip colors, revealed step by step | `sequence` widget | asked for ("visualize who's sending what kind of messages to whom"); verdict pending |
 
-## In the lab (diff rendering, round 1)
+## In the lab (diff rendering)
 
-`scripts/lab.py` builds `pr<N>-lab.html`: each experiment on the PR's own code, with a Today / Experiment toggle and keep / maybe / drop buttons that collect into a box to paste back. Go only, through tree-sitter (`scripts/goast.py`). First tried on a PR that adds an XML config package (19 new types, a 19-case table test).
+`scripts/lab.py` builds `pr<N>-lab.html`: each experiment on the PR's own code, with a Today / Experiment toggle and keep / maybe / drop buttons that collect into a box to paste back. The code analysis is Go only, through tree-sitter (`scripts/goast.py`). First tried on a PR that adds an XML config package (19 new types, a 19-case table test).
 
-| Idea | What the lab shows | Verdict |
+**Round 1 verdicts:**
+- **Change summaries as chips** (declarations, params, fields and call arguments from tree-sitter): *maybe*, "meh … too deterministic, let the LLM do it instead".
+- **Types as cards**: *keep*, "interesting, can we make it show the code directly but have rich expandable text?"
+- **Test tables beside the code**: *maybe*, "Can we put the table in line or overlaid on the code?"
+- **Happy path with "on error: …"**: *keep*, "cool, instead of writing `on error` want to write the actual code? `if err != nil { ....`".
+
+| Round 2 | What the lab shows | Verdict |
 |---|---|---|
-| Change summaries on hunk headers | Chips per hunk: declarations added or removed, `+ NewServer param cache *Cache`, `api.NewServer(): + arg cache`, struct fields, imports, and a `body +a −d` count per hunk that ignores alignment-only lines. Hunks start folded, so the PR reads as an outline; a chip opens its hunk at that line. | pending |
-| Type models as components (with enums as value tables) | One card per root type, one row per field: a `pointer` badge (`optional` when the field is `omitempty`), `list of`, `map K →`, the XML element, methods. A field whose type is in the PR opens that card in place. `type X int` + `iota` consts show their values. | pending |
-| Table-driven tests as tables | `[]struct{…}{…}` and `map[string]struct{…}` literals as tables, with string values unquoted. A prefix a cell shares with 2+ other rows collapses to `…`, so each case shows what's different about it. Added and changed cases are marked, and the loop that runs them is shown underneath. | pending |
-| Happy path | Each `if …err != nil { … }` folds to one line: the guarded call, then "on error: …" in grey; click to reopen. The header shows lines before → after. | pending |
+| The PR as an outline | Every hunk of every file (not only Go) folded under a one-line summary the agent writes while reviewing, in the spec's `lab.hunks`. Mechanical hunks say so, and review notes are highlighted. `lab.py --hunks` lists the hunks with tree-sitter's declaration changes as hints for writing the summaries. | pending |
+| Types as code you can open | The real declarations, starting from the types that contain the rest. A type name in a field opens that type's declaration nested under the line. Methods open the same way. Line-end badges: `pointer`, `optional` (`omitempty` pointers), `list of`, `map K →`; `iota` consts show `= N`. | pending |
+| Test cases as a table, inside the test | The test function as code, with the case literals replaced in place by the table; a bar switches between table and code. Boilerplate shared by 3+ cases shows as `…`. | pending |
+| Happy path | Each `if …err != nil { … }` joined onto one dimmed, highlighted line of its real code (`if err := f(); err != nil { return err }`), like an editor fold; click to reopen. | pending |
 
 ## Tried and dropped
 

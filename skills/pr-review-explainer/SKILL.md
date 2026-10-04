@@ -66,7 +66,13 @@ These come from Ben's feedback on earlier explainers.
 
 ## Lab
 
-`uv run scripts/lab.py <spec>` builds `reports/pr<N>-lab.html`, a page of diff-rendering experiments tried on the PR's own Go code: change summaries on hunk headers, types as components, table-driven tests as tables, and happy path. Each has a Today / Experiment toggle and verdict buttons. Use it when Ben is judging experiments, then record his verdicts in [reference/experiments.md](reference/experiments.md). The walkthrough doesn't use these renderings until he keeps one.
+`uv run scripts/lab.py <spec>` builds `reports/pr<N>-lab.html`, a page of diff-rendering experiments tried on the PR's own code:
+- the PR as an outline of written hunk summaries;
+- types as code you can open in place;
+- test cases as a table inside the test;
+- happy path.
+
+Each experiment has a Today / Experiment toggle and verdict buttons. The outline's summaries are yours to write. Run `lab.py <spec> --hunks` to list every hunk with hints, then write one line per hunk under the spec's `lab.hunks`: what it does, "Mechanical:" when it is, and "Review note:" for findings. Use the lab when Ben is judging experiments, and record his verdicts in [reference/experiments.md](reference/experiments.md). The walkthrough doesn't use these renderings until he keeps one.
 
 ## Files
 
