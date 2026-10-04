@@ -17,8 +17,9 @@
   a { color: var(--blue); text-decoration: none; } a:hover { text-decoration: underline; }
 
   /* ================= tour (fixed 1280x720 stage) ================= */
-  #tour { position: fixed; inset: 0; display: grid; place-items: center; }
-  #stage { width: 1280px; height: 720px; position: relative; overflow: hidden; transform-origin: center; background: var(--bg);
+  #tour { position: fixed; inset: 0; overflow: hidden; }
+  /* Pinned by its center rather than grid-centered: a 1280px stage overflows a narrower grid track from the left edge. */
+  #stage { width: 1280px; height: 720px; position: absolute; left: 50%; top: 50%; overflow: hidden; transform-origin: center; background: var(--bg);
     user-select: none; -webkit-user-select: none; }
   .cd, .note .txt, .note .ref, .item .ref, .item .txt, .tests .t .name, .srow .sp, .w { user-select: text; -webkit-user-select: text; }
   #glow { position: absolute; width: 900px; height: 900px; border-radius: 50%; left: -300px; top: -500px;
@@ -652,7 +653,7 @@ addEventListener('keydown', e => {
   else if (e.key === '-' || e.key === '<') setSpeed(Math.max(speedIdx - 1, 0));
   else if (e.key === 'r') setMode('read', activeScene);
 });
-function fit() { $('#stage').style.transform = `scale(${Math.min(innerWidth / 1280, innerHeight / 720)})`; }
+function fit() { $('#stage').style.transform = `translate(-50%, -50%) scale(${Math.min(innerWidth / 1280, innerHeight / 720)})`; }
 addEventListener('resize', fit); fit();
 
 // ================= read mode: the same scenes as a scrolling document =================
