@@ -41,7 +41,6 @@ spell:
   - CLA
   - RTR
   - RTA
-  - MSISDN
   - UE
   - NOR
   - SAR
@@ -56,9 +55,7 @@ spell:
   - SPTs
   - SDP
   - IMPU
-  - IMPI
   - IMPUs
-  - IMPIs
   - CNF
   - DNF
   - TS
@@ -74,6 +71,9 @@ ipa:
   TAS: "tˈæs"
   IMSI: "ˈɪmzi"
   IMSIs: "ˈɪmziz"
+  MSISDN: "mˈɪzdɪn"
+  IMPI: "ˈɪmpi"
+  IMPIs: "ˈɪmpiz"
   S6a: "ˌɛs sˌɪks ˈeɪ"
   S6d: "ˌɛs sˌɪks dˈiː"
   Cx: "sˌiː ˈɛks"
@@ -99,7 +99,10 @@ text:
   SIP: "sip"
   TAS: "tass"
   IMSI: "imzee"
-  IMSIs: "imzees"
+  IMSIs: "imm-zees"
+  MSISDN: "miz-din"
+  IMPI: "imm-pee"
+  IMPIs: "imm-pees"
   S6a: "S six A"
   S6d: "S six D"
   Cx: "C X"
