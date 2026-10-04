@@ -16,6 +16,7 @@ These are Ben's ideas for visualizing a PR. He wants all of them tried, one at a
 | Rule data as a table with logic chips (e.g. routing rules from a config file) | `table` widget | liked in the static explainer |
 | Run the code and show real output | `snippet` widget fed from a real run | liked |
 | Everything in the PR reachable | read mode's "rest of the diff" | pending |
+| Message ladder: who sends what to whom, old vs new identity in different chip colors, revealed step by step | `sequence` widget | asked for ("visualize who's sending what kind of messages to whom"); verdict pending |
 
 ## In the lab (diff rendering, round 1)
 

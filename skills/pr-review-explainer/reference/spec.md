@@ -104,6 +104,16 @@ widgets:
     title: Real output
     wrap: true
     lines: ["plain line", { text: "added", tone: add }, { text: "removed", tone: del }, { text: "highlight", tone: warn }]
+  flow:
+    kind: sequence                   # message ladder: one lifeline per actor
+    title: Who sends what
+    legend: "{c:A} old · {d:B} new"  # optional line under the title
+    actors: [MME, HSS, S-CSCF]
+    rows:
+      - { from: MME, to: HSS, label: ULR, tag: "{d:IMSI B}", sub: "small grey line under the arrow" }
+      - { from: HSS, to: MME, label: CLA, dashed: true, tone: err, step: 1 }   # tones: err, ok, dim
+      - { note: "box on a lifeline", at: HSS, tone: hot, step: 1 }             # at: one actor or a list to span
+      - { divider: "this PR", step: 2 }                                         # full-width section label
   custom:
     kind: html                       # escape hatch; use data-step="k" / data-hl="k" on children
     html: "<div data-step='1'>...</div>"
