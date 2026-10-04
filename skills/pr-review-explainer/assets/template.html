@@ -1,0 +1,802 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>PR walkthrough</title>
+<style>
+  :root {
+    --bg: #0f1116; --panel: #161921; --panel2: #1b1e27; --line: #2a2e3b; --fg: #e3e6ec; --dim: #8b92a3;
+    --blue: #6eaaff; --green: #5fd38a; --red: #f07a7a; --amber: #ffbe5a; --violet: #c38cff;
+    --mono: "SF Mono", Menlo, monospace; --lh: 21px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg);
+    font: 17px/1.4 -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif; -webkit-font-smoothing: antialiased; }
+  body.mode-tour { height: 100%; overflow: hidden; }
+  body.mode-tour #read, body.mode-read #tour { display: none; }
+  a { color: var(--blue); text-decoration: none; } a:hover { text-decoration: underline; }
+
+  /* ================= tour (fixed 1280x720 stage) ================= */
+  #tour { position: fixed; inset: 0; display: grid; place-items: center; }
+  #stage { width: 1280px; height: 720px; position: relative; overflow: hidden; transform-origin: center; background: var(--bg);
+    user-select: none; -webkit-user-select: none; }
+  .cd, .note .txt, .note .ref, .item .ref, .item .txt, .tests .t .name, .srow .sp, .w { user-select: text; -webkit-user-select: text; }
+  #glow { position: absolute; width: 900px; height: 900px; border-radius: 50%; left: -300px; top: -500px;
+    background: radial-gradient(circle, rgba(110,170,255,.10), rgba(110,170,255,0) 65%); pointer-events: none; }
+  .scene { position: absolute; inset: 0; opacity: 0; }
+  .scene:not(.active) { pointer-events: none; visibility: hidden; }
+  .scene.active, .scene.near { visibility: visible; }
+  .head { position: absolute; left: 56px; top: 30px; right: 56px; }
+  .kicker { color: var(--blue); font-size: 13px; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 4px; }
+  h1 { margin: 0; font-size: 30px; letter-spacing: -.4px; }
+
+  .pane { position: absolute; left: 56px; top: 112px; width: 812px; height: 452px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .pane.wide { width: 1168px; } .pane.narrow { width: 640px; }
+  .scroll { position: absolute; left: 0; right: 0; top: 0; padding: 0 0 20px; }
+  .side { position: absolute; left: 890px; top: 112px; width: 334px; display: flex; flex-direction: column; gap: 12px; }
+  .side.wide { left: 718px; width: 506px; }
+
+  /* ================= shared code rows ================= */
+  .hunk { margin-bottom: 14px; }
+  .hhead { height: 32px; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: var(--panel2);
+    border-bottom: 1px solid var(--line); border-top: 1px solid var(--line); font-family: var(--mono); font-size: 12.5px; }
+  .hunk:first-child .hhead { border-top: 0; }
+  .hhead .dir { color: var(--dim); } .hhead .base { color: var(--fg); font-weight: 600; }
+  .hhead .rng { margin-left: auto; color: var(--dim); }
+  .hhead .newf { color: var(--green); border: 1px solid var(--green); border-radius: 4px; padding: 0 5px; font-size: 10.5px; }
+  .hbody { overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; scrollbar-color: #343a4a transparent; }
+  .hbody::-webkit-scrollbar { height: 7px; } .hbody::-webkit-scrollbar-thumb { background: #343a4a; border-radius: 4px; }
+  .rows { width: max-content; min-width: 100%; }
+  .row { height: var(--lh); overflow: hidden; position: relative; display: flex;
+    font-family: var(--mono); font-size: 12.5px; line-height: var(--lh); white-space: pre; tab-size: 4; }
+  .gut { position: sticky; left: 0; z-index: 1; flex: none; display: inline-grid; grid-template-columns: 40px 40px 18px; background: var(--panel); }
+  .row .ln { color: #4d5466; text-align: right; padding-right: 8px; }
+  .row .sg { color: var(--dim); text-align: center; }
+  .row .cd { padding: 0 16px 0 2px; }
+  .row.add { background: rgba(95,211,138,.11); } .row.add .gut { background: #1e2e2d; } .row.add .sg { color: var(--green); }
+  .row.del { background: rgba(240,122,122,.11); } .row.del .gut { background: #2e242b; } .row.del .sg { color: var(--red); }
+  .row.add.newfile { background: rgba(95,211,138,.045); } .row.add.newfile .gut { background: #192126; }
+  .row.cos .sg { color: #5a6175; } .row.cos .cd { opacity: .75; }
+  .row.mod .sg { color: var(--amber); }
+  .row .strike { position: absolute; left: 100px; right: 12px; top: 50%; height: 1px; background: rgba(240,122,122,.7); transform-origin: left center; }
+  mark.x-ins { background: rgba(95,211,138,.28); color: inherit; border-radius: 3px; }
+  mark.x-del { background: rgba(240,122,122,.3); color: inherit; border-radius: 3px; }
+  .row.add mark.x-ins { background: rgba(95,211,138,.34); }
+
+  /* pygments, namespaced so they can't restyle our own classes */
+  .t-k, .t-kd, .t-kn, .t-kr, .t-kc, .t-kp { color: #c792ea; } .t-kt, .t-nc { color: #82aaff; }
+  .t-s, .t-s1, .t-s2, .t-sr, .t-sb, .t-sc, .t-sd, .t-sh, .t-sx { color: #a8d88a; } .t-se, .t-si { color: #89ddff; }
+  .t-c, .t-c1, .t-cm, .t-cp, .t-ch, .t-cs, .t-cpf { color: #6b7389; font-style: italic; }
+  .t-m, .t-mi, .t-mf, .t-mh, .t-mo, .t-mb, .t-il { color: #f5a76c; }
+  .t-nf, .t-fm { color: #82aaff; } .t-nb, .t-bp { color: #89ddff; } .t-o, .t-p, .t-ow { color: #a9b1c6; }
+  .t-nt { color: #82aaff; } .t-na { color: #c792ea; } .t-ni { color: #f5a76c; }
+
+  /* ================= notes ================= */
+  .note { background: var(--panel2); border: 1px solid var(--line); border-left: 3px solid var(--blue); border-radius: 10px; padding: 12px 14px; }
+  .note.review { border-left-color: var(--amber); background: #1f1d1a; }
+  .note .tag { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; color: var(--blue); margin-bottom: 4px; }
+  .note.review .tag { color: var(--amber); }
+  .note .txt { font-size: 14.5px; line-height: 1.45; }
+  .note .ref { font-family: var(--mono); font-size: 11.5px; color: var(--dim); margin-top: 6px; display: inline-block; }
+  .note code, .w code, .item code { font-family: var(--mono); font-size: .88em; background: #252935; padding: 0 4px; border-radius: 4px; }
+
+  /* ================= widgets (data-driven; see reference/spec.md) ================= */
+  .w { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: 13px; }
+  .w-title { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; color: var(--violet); margin-bottom: 8px; text-transform: uppercase; }
+  .w-table { display: grid; gap: 4px 8px; align-items: start; }
+  .w-table .h { color: var(--dim); font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; }
+  .w-table .c { padding: 3px 7px; border-radius: 5px; background: #252935; line-height: 1.5; }
+  .w-table .c.mono { font-family: var(--mono); font-size: 12px; }
+  .tone-ok { color: var(--green); } .tone-bad { color: var(--red); } .tone-warn { color: var(--amber); } .tone-dim { color: var(--dim); }
+  .w-table .rowwrap { display: contents; }
+  .chip { display: inline-block; font-family: var(--mono); font-size: 11.5px; padding: 0 6px; border-radius: 4px; background: #2b3040; margin: 1px 0; white-space: nowrap; }
+  .chip-a { background: #22324d; color: #9cc4ff; } .chip-b { background: #33284a; color: #d3b0ff; }
+  .chip-c { background: #3d3220; color: #ffd08a; } .chip-d { background: #1f3a2b; color: #8fe0ad; }
+  .chip-x { background: #23262f; color: #6b7389; text-decoration: line-through; }
+  .w-flow { display: flex; flex-direction: column; gap: 0; }
+  .fnode { background: #252935; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-family: var(--mono); font-size: 12px; }
+  .fnode small { display: block; font-family: -apple-system, sans-serif; font-size: 11.5px; color: var(--dim); margin-top: 1px; }
+  .fnode.tone-hot { border-color: var(--amber); } .fnode.tone-err { border-color: var(--red); background: #2c1f24; }
+  .fnode.tone-ok { border-color: var(--green); } .fnode.tone-key { border-color: var(--blue); color: var(--blue); }
+  .farrow { color: var(--dim); font-size: 13px; padding: 1px 0 1px 14px; }
+  .fbranch { display: flex; align-items: center; gap: 6px; margin: 4px 0 2px 26px; }
+  .fbranch .farrow { padding: 0; }
+  .w-snippet { font-family: var(--mono); font-size: 11.5px; line-height: 1.55; background: #13151c; border: 1px solid var(--line);
+    border-radius: 6px; padding: 6px 8px; white-space: pre; overflow-x: auto; }
+  .w-snippet .ln-add { background: rgba(95,211,138,.15); display: block; } .w-snippet .ln-del { background: rgba(240,122,122,.15); display: block; text-decoration: line-through; }
+  .w-snippet .ln-dim { color: var(--dim); }
+  .w-snippet.wrap { white-space: pre-wrap; word-break: break-word; }
+  .w-snippet .ln-warn { color: var(--amber); }
+  .w [data-hl].lit { box-shadow: 0 0 0 1px var(--blue); }
+
+  /* ================= stat ================= */
+  .term .cmd { height: 38px; display: flex; align-items: center; padding: 0 16px; font-family: var(--mono); font-size: 13px;
+    background: var(--panel2); border-bottom: 1px solid var(--line); }
+  .term .cmd .pr { color: var(--green); margin-right: 8px; }
+  .cursor { display: inline-block; width: 8px; height: 15px; background: var(--fg); margin-left: 2px; vertical-align: -2px; }
+  .srow { height: 18px; display: grid; grid-template-columns: 1fr 52px 52px 260px; gap: 10px; padding: 0 16px;
+    font-family: var(--mono); font-size: 12px; line-height: 18px; border-radius: 4px; }
+  .srow .sp .dir { color: var(--dim); } .srow .add { color: var(--green); text-align: right; } .srow .del { color: var(--red); text-align: right; }
+  .srow .bar { display: flex; align-items: center; }
+  .srow .bar i { display: block; height: 8px; transform-origin: left center; }
+  .srow .bar .a { background: var(--green); border-radius: 2px 0 0 2px; } .srow .bar .d { background: var(--red); border-radius: 0 2px 2px 0; }
+  .srow.test .sp .base { color: #b9a6e0; }
+  .slist { padding-top: 8px; }
+  .totals { margin-left: auto; font-family: var(--mono); font-size: 13px; color: var(--dim); }
+
+  /* ================= summary ================= */
+  .tests { position: absolute; left: 56px; top: 112px; width: 520px; }
+  .tests .t { font-family: var(--mono); font-size: 13px; padding: 7px 14px; border-bottom: 1px solid var(--line); display: flex; gap: 10px; }
+  .tests .t .ok { color: var(--green); font-weight: 800; display: inline-block; }
+  .items { position: absolute; left: 600px; top: 112px; width: 624px; display: flex; flex-direction: column; gap: 14px; }
+  .item { background: var(--panel2); border: 1px solid var(--line); border-left: 3px solid var(--amber); border-radius: 10px; padding: 14px 16px; }
+  .item.nit { border-left-color: var(--dim); }
+  .item .ref { font-family: var(--mono); font-size: 12px; margin-bottom: 6px; display: block; }
+  .item .txt { font-size: 16px; }
+  .card-title { font-size: 12px; font-weight: 700; letter-spacing: 1.5px; color: var(--dim); padding: 12px 14px 8px; }
+
+  /* ================= tour chrome ================= */
+  #caption { position: absolute; left: 80px; right: 80px; bottom: 84px; min-height: 48px; color: #cfd3dc; font-size: 17px; text-align: center; }
+  #controls { position: absolute; left: 40px; right: 40px; bottom: 16px; height: 52px; display: flex; align-items: center; gap: 14px; }
+  button.ctl { background: var(--panel2); color: var(--fg); border: 1px solid var(--line); border-radius: 8px;
+    height: 34px; min-width: 40px; padding: 0 12px; font-size: 14px; cursor: pointer; font-family: inherit; }
+  button.ctl:hover { border-color: var(--blue); }
+  button.ctl.on { border-color: var(--blue); color: var(--blue); }
+  #time { font-family: var(--mono); font-size: 13px; color: var(--dim); width: 96px; text-align: center; }
+  #speed { width: 64px; font-family: var(--mono) !important; }
+  #bar { position: relative; flex: 1; height: 34px; cursor: pointer; touch-action: none; }
+  #track { position: absolute; left: 0; right: 0; top: 20px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+  #fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--blue); width: 0; }
+  #knob { position: absolute; top: 15px; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 4px rgba(110,170,255,.35); }
+  .chapter { position: absolute; top: 0; height: 18px; font-size: 10.5px; color: var(--dim); white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; padding-left: 5px; border-left: 1px solid var(--line); }
+  .chapter.cur { color: var(--fg); }
+  .tick { position: absolute; top: 18px; width: 2px; height: 10px; background: var(--bg); }
+  #start { position: absolute; inset: 0 0 80px 0; display: grid; place-items: center; background: rgba(10,12,16,.55); z-index: 5; cursor: pointer; }
+  #start .go { background: var(--blue); color: #0b1020; font-weight: 700; font-size: 22px; padding: 16px 34px; border-radius: 40px; }
+  #start .alt { margin-top: 14px; font-size: 14px; color: var(--dim); text-align: center; }
+  #start .alt a { cursor: pointer; }
+  #silent { position: absolute; right: 56px; top: 34px; font-size: 11px; color: var(--amber); border: 1px solid var(--amber); border-radius: 5px; padding: 1px 6px; }
+
+  /* ================= read (scrolling document) ================= */
+  #read { max-width: 1320px; margin: 0 auto; padding: 0 28px 120px; font-size: 15px; }
+  #rbar { position: sticky; top: 0; z-index: 10; background: rgba(15,17,22,.94); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line);
+    margin: 0 -28px; padding: 10px 28px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  #rbar .ttl { font-weight: 650; margin-right: auto; font-size: 15px; }
+  #rbar .ttl small { color: var(--dim); font-weight: 400; margin-left: 8px; }
+  #read h2 { font-size: 22px; margin: 0; letter-spacing: -.2px; }
+  .rsec { padding: 30px 0 8px; border-bottom: 1px solid var(--line); scroll-margin-top: 50px; }
+  #read .row.rfold { cursor: pointer; color: var(--dim); font-family: -apple-system, sans-serif; font-size: 12px; }
+  #read .row.rfold:hover { color: var(--blue); }
+  #read .row.rfolded { display: none; }
+  #layout-errors { position: absolute; left: 0; right: 0; top: 0; z-index: 9; background: #7a1f1f; color: #fff; font: 12px var(--mono); padding: 4px 10px; }
+  .rsec .rhead { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+  .rsec .rhead .kicker { margin: 0; }
+  .rsec .rhead button { margin-left: auto; }
+  .rgrid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 18px; align-items: start; }
+  .rgrid.wide { grid-template-columns: minmax(0, 1fr) 520px; }
+  .rgrid.solo { grid-template-columns: minmax(0, 1fr); }
+  .rcode { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  #read .row { height: auto; }
+  .rsteps { display: flex; flex-direction: column; gap: 10px; position: sticky; top: 64px; }
+  .rstep { border-left: 2px solid var(--line); padding: 2px 0 2px 12px; display: flex; flex-direction: column; gap: 8px; }
+  .rstep .say { color: #c5cad6; font-size: 14px; line-height: 1.5; }
+  .rstep:hover { border-left-color: var(--blue); }
+  .rstep:hover .say { color: var(--fg); }
+  #read .row.hot { box-shadow: inset 3px 0 0 0 var(--blue); background-color: rgba(110,170,255,.10); }
+  #read .row.hot .gut { background: #1d2433; }
+  .rstat .srow { height: 20px; line-height: 20px; }
+  .rest details { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; margin: 10px 0; overflow: hidden; }
+  .rest summary { cursor: pointer; padding: 8px 14px; font-family: var(--mono); font-size: 12.5px; }
+  .rest summary .cnt { color: var(--dim); margin-left: 8px; }
+  body:not(.raw-diff) .rows.raw, body.raw-diff .rows.struct { display: none; }
+</style>
+</head>
+<body class="mode-tour">
+<div id="tour"><div id="stage">
+  <div id="glow"></div>
+  <div id="scenes"></div>
+  <div id="caption"></div>
+  <div id="controls">
+    <button class="ctl" id="play" title="Play / pause (space)">▶</button>
+    <div id="time">0:00 / 0:00</div>
+    <div id="bar"><div id="track"><div id="fill"></div></div><div id="knob"></div></div>
+    <button class="ctl" id="speed" title="Playback speed ( - / = )">1×</button>
+    <button class="ctl" id="toRead" title="Read this part as a document (r)">Read</button>
+  </div>
+  <div id="start"><div><div class="go">▶ Play walkthrough</div><div class="alt">or <a id="startRead">read it as a document</a></div></div></div>
+</div></div>
+
+<div id="read">
+  <div id="rbar">
+    <span class="ttl" id="rtitle"></span>
+    <button class="ctl" id="playTour">▶ Play tour</button>
+    <button class="ctl on" id="tStruct" title="Hide whitespace-only changes and mark changed tokens (difftastic)">Structural diff</button>
+  </div>
+  <div id="rbody"></div>
+</div>
+
+<script>
+const DATA = /*DATA*/null;
+const D = DATA.duration, SC = DATA.scenes, META = DATA.meta;
+const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const LH = 21, HHEAD = 32, HGAP = 14, PANE_H = 452;
+const SIDE_MAX = 470;  // side column top (112) to just above the caption (588)
+const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const splitPath = p => { const i = p.lastIndexOf('/'); return `<span class="path"><span class="dir">${esc(p.slice(0, i + 1))}</span><span class="base">${esc(p.slice(i + 1))}</span></span>`; };
+// Ticket keys from the spec's Jira projects and #N references to this repo's PRs become links.
+const JIRA = META.jira?.projects?.length ? new RegExp(`\\b(?:${META.jira.projects.join('|')})-\\d+\\b`, 'g') : null;
+const link = (href, text) => `<a href="${esc(href)}" target="_blank" rel="noopener">${text}</a>`;
+const linkify = html => {
+  if (JIRA) html = html.replace(JIRA, k => link(`${META.jira.site}/browse/${k}`, k));
+  return html.replace(/(^|[^&\w])#(\d+)\b/g, (_, pre, n) => pre + link(`https://github.com/${META.github}/pull/${n}`, '#' + n));
+};
+// Inline markup for note, widget, step and item text: `code`, **bold**, ~~strike~~, {a:chip}.
+const md = s => linkify(esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+  .replace(/~~([^~]+)~~/g, '<s>$1</s>').replace(/\{([a-z]):([^}]+)\}/g, '<span class="chip chip-$1">$2</span>'));
+const refLink = r => r ? `<a class="ref" href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.label)}</a>` : '';
+document.title = META.title;
+
+// ================= timeline engine: paused WAAPI animations driven by the clock =================
+const EASE = 'cubic-bezier(.22,.9,.25,1)';
+const groups = SC.map(() => []), globalTracks = [], customs = [];
+let curGroup = globalTracks;
+function track(target, frames) {
+  frames = frames.slice().sort((a, b) => a[0] - b[0]);
+  const t0 = frames[0][0], dur = Math.max(frames.at(-1)[0] - t0, 0.001);
+  const anim = target.animate(frames.map(([t, k]) => ({ easing: EASE, ...k, offset: (t - t0) / dur })), { duration: dur * 1000, fill: 'both' });
+  anim.pause();
+  curGroup.push({ anim, t0, dur });
+}
+const custom = (t0, dur, fn) => customs.push({ t0, dur, fn });
+const rise = (e, t, dy = 14, d = .5) => track(e, [[t, { opacity: 0, transform: `translateY(${dy}px)` }], [t + d, { opacity: 1, transform: 'translateY(0px)' }]]);
+const grow = (e, t, d = .5) => track(e, [[t, { transform: 'scaleX(0)' }], [t + d, { transform: 'scaleX(1)' }]]);
+function onPanel(rgb, a) { const base = [22, 25, 33]; return `rgb(${base.map((b, i) => Math.round(b + (rgb[i] - b) * a)).join(',')})`; }
+
+// ================= code rows (shared by both modes) =================
+const KIND = { '+': 'add', '-': 'del', ' ': 'ctx', '~': 'cos', '±': 'mod' };
+const SIGN = { '+': '+', '-': '−', ' ': '', '~': '≈', '±': '±' };
+function rowEl(r, isNew) {
+  const cls = KIND[r.k] + (r.k === '+' && isNew ? ' newfile' : '');
+  const row = el('div', 'row ' + cls);
+  const gut = el('span', 'gut');
+  gut.append(el('span', 'ln', r.o ?? ''), el('span', 'ln', r.n ?? ''), el('span', 'sg', SIGN[r.k]));
+  row.append(gut, el('span', 'cd', r.h || ' '));
+  if (r.k === '-') row.appendChild(el('i', 'strike'));
+  return row;
+}
+function hunkHead(h) {
+  const isNew = h.isNew;
+  return el('div', 'hhead', `<a href="${esc(h.url)}" target="_blank" rel="noopener">${splitPath(h.file)}</a>${isNew ? '<span class="newf">new file</span>' : ''}<span class="rng">${h.range}</span>`);
+}
+
+// ================= widgets =================
+// Each returns an element. Children with data-step="k" appear at step k; data-hl="k" lights up at step k.
+const W = {
+  table(w) {
+    const e = el('div', 'w');
+    if (w.title) e.appendChild(el('div', 'w-title', esc(w.title)));
+    const g = el('div', 'w-table');
+    g.style.gridTemplateColumns = w.widths || `repeat(${w.columns.length}, auto)`;
+    w.columns.forEach(c => g.appendChild(el('span', 'h', esc(c))));
+    w.rows.forEach(r => {
+      const row = Array.isArray(r) ? { cells: r } : r;
+      const wrap = el('div', 'rowwrap');
+      row.cells.forEach((c, i) => {
+        const m = /^(ok|bad|warn|dim):\s*/.exec(c);
+        const cell = el('span', 'c' + (w.mono?.includes(i) ? ' mono' : '') + (m ? ' tone-' + m[1] : '') + (row.tone ? ' tone-' + row.tone : ''), md(m ? c.slice(m[0].length) : c));
+        if (row.step != null) cell.dataset.step = row.step;
+        if (row.hl != null) cell.dataset.hl = row.hl;
+        wrap.appendChild(cell);
+      });
+      g.appendChild(wrap);
+    });
+    e.appendChild(g);
+    return e;
+  },
+  flow(w) {
+    const e = el('div', 'w');
+    if (w.title) e.appendChild(el('div', 'w-title', esc(w.title)));
+    const f = el('div', 'w-flow');
+    w.nodes.forEach((n, i) => {
+      const step = n.step ?? 0;
+      if (i) { const a = el('div', 'farrow', '↓'); a.dataset.step = step; f.appendChild(a); }
+      const node = el('div', 'fnode' + (n.tone ? ' tone-' + n.tone : ''), `${md(n.label)}${n.sub ? `<small>${md(n.sub)}</small>` : ''}`);
+      node.dataset.step = step;
+      if (n.hl != null) node.dataset.hl = n.hl;
+      f.appendChild(node);
+      if (n.branch) {
+        const b = el('div', 'fbranch');
+        b.dataset.step = n.branch.step ?? step;
+        b.append(el('span', 'farrow', '↳'), el('div', 'fnode' + (n.branch.tone ? ' tone-' + n.branch.tone : ''),
+          `${md(n.branch.label)}${n.branch.sub ? `<small>${md(n.branch.sub)}</small>` : ''}`));
+        f.appendChild(b);
+      }
+    });
+    e.appendChild(f);
+    return e;
+  },
+  snippet(w) {
+    const e = el('div', 'w');
+    if (w.title) e.appendChild(el('div', 'w-title', esc(w.title)));
+    const pre = el('div', 'w-snippet' + (w.wrap ? ' wrap' : ''));
+    w.lines.forEach(l => {
+      const line = typeof l === 'string' ? { text: l } : l;
+      const s = el('span', line.tone ? 'ln-' + line.tone : '', esc(line.text) + (line.tone === 'add' || line.tone === 'del' ? '' : '\n'));
+      if (line.step != null) s.dataset.step = line.step;
+      pre.appendChild(s);
+    });
+    e.appendChild(pre);
+    return e;
+  },
+  html(w) { const e = el('div', 'w', (w.title ? `<div class="w-title">${esc(w.title)}</div>` : '') + w.html); return e; },
+};
+function animateWidget(e, ts) {
+  const at = k => ts[Math.min(k, ts.length - 1)] ?? ts[0];
+  $$('[data-step]', e).forEach(c => { const k = +c.dataset.step; if (k > 0) rise(c, at(k) + .1, 6, .4); });
+  $$('[data-hl]', e).forEach(c => {
+    const t = at(+c.dataset.hl);
+    track(c, [[t, { boxShadow: '0 0 0 0 rgba(110,170,255,0)' }], [t + .3, { boxShadow: '0 0 0 2px rgba(110,170,255,.9)' }]]);
+  });
+}
+
+// ================= tour: code scenes =================
+function buildCode(scene, root) {
+  const S = scene.start, hasSide = scene.actions.some(a => a.type === 'note' || a.type === 'widget');
+  const pane = el('div', 'pane' + (hasSide ? (scene.side === 'wide' ? ' narrow' : '') : ' wide')), scroll = el('div', 'scroll');
+  pane.appendChild(scroll); root.appendChild(pane);
+  const morphAt = scene.hunks.map((h, i) => {
+    const a = scene.actions.find(a => a.type === 'morph' && a.hunk === i);
+    return a ? a.t : (h.mode === 'diff' ? null : S + .5 + i * .2);
+  });
+  const rowEls = [], model = [];
+  scene.hunks.forEach((h, hi) => {
+    const hunk = el('div', 'hunk');
+    hunk.appendChild(hunkHead(h));
+    let nDel = 0, nAdd = 0;
+    rowEls[hi] = [];
+    const body = el('div', 'hbody'), rowsEl = el('div', 'rows');
+    body.appendChild(rowsEl); hunk.appendChild(body);
+    h.rows.forEach((r, ri) => {
+      const row = rowEl(r, h.isNew);
+      rowsEl.appendChild(row);
+      rowEls[hi][ri] = row;
+      const m = morphAt[hi];
+      let addT = null;
+      if (m !== null && r.k === '+') addT = m + (h.mode === 'type' ? ri * .045 : .55 + nAdd++ * .07);
+      if (m !== null && r.k === '-') {
+        const dT = m + nDel++ * .04, gut = $('.gut', row);
+        const tint = a => ({ backgroundColor: `rgba(240,122,122,${a})` });
+        track(row, [[dT, tint(0)], [dT + .12, tint(.35)], [dT + .5, tint(.11)]]);
+        track(gut, [[dT, { backgroundColor: onPanel([240, 122, 122], 0) }], [dT + .12, { backgroundColor: onPanel([240, 122, 122], .35) }],
+          [dT + .5, { backgroundColor: onPanel([240, 122, 122], .11) }]]);
+        track($('.sg', row), [[dT, { color: 'rgba(240,122,122,0)' }], [dT + .2, { color: 'rgba(240,122,122,1)' }]]);
+        grow($('.strike', row), dT + .1, .35);
+        track($('.cd', row), [[dT, { filter: 'brightness(1)' }], [dT + .4, { filter: 'brightness(.6)' }]]);
+      }
+      if (m !== null && r.k === '±') {
+        const mT = m + .55 + nAdd++ * .07;
+        $$('mark.x-ins', row).forEach(mk => track(mk, [[mT, { backgroundColor: 'rgba(95,211,138,0)' }], [mT + .2, { backgroundColor: 'rgba(95,211,138,.6)' }], [mT + .9, { backgroundColor: 'rgba(95,211,138,.28)' }]]));
+      }
+      if (addT !== null) {
+        const flash = h.mode === 'type' ? .22 : .35, rest = h.isNew ? .045 : .11, g = [95, 211, 138], gut = $('.gut', row);
+        track(row, [[addT, { height: '0px', backgroundColor: `rgba(95,211,138,${flash})` }], [addT + .28, { height: LH + 'px', backgroundColor: `rgba(95,211,138,${flash})` }],
+          [addT + .9, { height: LH + 'px', backgroundColor: `rgba(95,211,138,${rest})` }]]);
+        track(gut, [[addT, { backgroundColor: onPanel(g, flash) }], [addT + .28, { backgroundColor: onPanel(g, flash) }], [addT + .9, { backgroundColor: onPanel(g, rest) }]]);
+      }
+      model.push({ hi, ri, addT });
+    });
+    scroll.appendChild(hunk);
+  });
+
+  function layoutAt(t) {
+    const tops = {}; let y = 0;
+    scene.hunks.forEach((h, hi) => {
+      y += HHEAD;
+      h.rows.forEach((r, ri) => {
+        const m = model.find(x => x.hi === hi && x.ri === ri);
+        tops[hi + ':' + ri] = y;
+        y += m.addT !== null && t < m.addT ? 0 : LH;
+      });
+      y += HGAP;
+    });
+    return { tops, total: y };
+  }
+  const focuses = scene.actions.filter(a => a.type === 'focus');
+  const sf = [[S - .6, { transform: 'translateY(0px)' }]];
+  let y = 0;
+  for (const f of focuses) {
+    const L = layoutAt(f.t + 1.2);
+    const first = L.tops[f.rows[0].join(':')], last = L.tops[f.rows.at(-1).join(':')] + LH;
+    let target = (last - first) < PANE_H - 120 ? first - 90 : first - 40;
+    target = Math.max(0, Math.min(target, L.total - PANE_H + 20));
+    sf.push([f.t, { transform: `translateY(${-y}px)` }], [f.t + .8, { transform: `translateY(${-target}px)` }]);
+    y = target;
+  }
+  track(scroll, sf);
+  for (const m of model) {
+    const row = rowEls[m.hi][m.ri];
+    const df = [[S - .6, { opacity: 1 }]], bf = [[S - .6, { boxShadow: 'inset 0 0 0 0 rgba(110,170,255,0)' }]];
+    let prevIn = null;
+    for (const f of focuses) {
+      const isIn = f.rows.some(([h, r]) => h === m.hi && r === m.ri);
+      const was = prevIn === null ? 1 : (prevIn ? 1 : .3);
+      df.push([f.t, { opacity: was }], [f.t + .35, { opacity: isIn ? 1 : .3 }]);
+      const on = 'inset 3px 0 0 0 rgba(110,170,255,1)', off = 'inset 0 0 0 0 rgba(110,170,255,0)';
+      bf.push([f.t, { boxShadow: prevIn ? on : off }], [f.t + .3, { boxShadow: isIn ? on : off }]);
+      prevIn = isIn;
+    }
+    $$('.ln, .sg', row).forEach(c => track(c, df));
+    track($('.cd', row), df);
+    track($('.gut', row), bf);
+  }
+  buildSide(scene, root);
+}
+
+// Notes and widgets share the side column, ordered by when they first appear.
+function noteEl(n) {
+  const card = el('div', 'note' + (n.tag === 'REVIEW' ? ' review' : ''));
+  card.append(el('div', 'tag', n.tag === 'REVIEW' ? 'REVIEW NOTE' : 'NOTE'), el('div', 'txt', md(n.text)));
+  if (n.ref) card.insertAdjacentHTML('beforeend', refLink(n.ref));
+  return card;
+}
+function widgetTimes(scene) {
+  const steps = {};
+  scene.actions.filter(a => a.type === 'widget').forEach(a => ((steps[a.name] ||= [])[a.step] = a.t));
+  return steps;
+}
+function buildSide(scene, root) {
+  const blocks = scene.actions.filter(a => a.type === 'note').map(n => ({ t: n.t, el: noteEl(n) }));
+  for (const [name, ts] of Object.entries(widgetTimes(scene))) {
+    const e = W[scene.widgets[name].kind](scene.widgets[name]);
+    blocks.push({ t: ts[0], el: e, animate: () => animateWidget(e, ts) });
+  }
+  if (!blocks.length) return;
+  const col = el('div', 'side' + (scene.side === 'wide' ? ' wide' : ''));
+  blocks.sort((a, b) => a.t - b.t).forEach(b => {
+    col.appendChild(b.el);
+    track(b.el, [[b.t, { opacity: 0, transform: 'translateX(30px)' }], [b.t + .5, { opacity: 1, transform: 'translateX(0px)' }]]);
+  });
+  root.appendChild(col);
+  blocks.forEach(b => b.animate && b.animate());
+}
+
+// ================= tour: stat and summary scenes =================
+function statRows(list, animateFrom) {
+  const max = Math.max(...DATA.stat.map(s => s.a + s.d));
+  DATA.stat.forEach((s, i) => {
+    const row = el('div', 'srow' + (/(_test\.go|\.test\.|test_|\/testdata\/|spec\.)/.test(s.path) ? ' test' : ''));
+    const w = 250 / max;
+    row.innerHTML = `<span class="sp">${splitPath(s.path.replace(/^internal\//, ''))}</span><span class="add">+${s.a}</span><span class="del">−${s.d}</span>
+      <span class="bar"><i class="a" style="width:${s.a * w}px"></i><i class="d" style="width:${s.d * w}px"></i></span>`;
+    row.dataset.path = s.path;
+    list.appendChild(row);
+    if (animateFrom != null) {
+      const t = animateFrom + i * .06;
+      rise(row, t, 8, .35);
+      $$('.bar i', row).forEach((b, k) => grow(b, t + .2 + k * .15, .5));
+    }
+  });
+}
+const totals = () => {
+  const a = DATA.stat.reduce((n, s) => n + s.a, 0), d = DATA.stat.reduce((n, s) => n + s.d, 0);
+  return `<b>${DATA.stat.length}</b> files · <b style="color:var(--green)">+${a}</b> <b style="color:var(--red)">−${d}</b> · tests in violet`;
+};
+function buildStat(scene, root) {
+  const S = scene.start, pane = el('div', 'pane wide term');
+  const cmdText = META.statCommand;
+  const cmd = el('div', 'cmd', `<span class="pr">$</span><span class="typed"></span><span class="cursor"></span>`);
+  pane.appendChild(cmd);
+  const typed = $('.typed', cmd);
+  custom(S + .2, 1.1, p => typed.textContent = cmdText.slice(0, Math.round(cmdText.length * p)));
+  track($('.cursor', cmd), [[S, { opacity: 1 }], [S + 1.6, { opacity: 1 }], [S + 1.8, { opacity: 0 }]]);
+  const list = el('div', 'slist');
+  statRows(list, S + 1.5);
+  pane.appendChild(list); root.appendChild(pane);
+  const tot = el('span', 'totals', totals());
+  cmd.appendChild(tot); rise(tot, S + 3.0, 0);
+  scene.actions.filter(a => a.type === 'hl').forEach(a => {
+    const row = $$('.srow', list).find(r => r.dataset.path === a.arg);
+    track(row, [[a.t, { backgroundColor: 'rgba(110,170,255,0)', boxShadow: 'inset 3px 0 0 0 rgba(110,170,255,0)' }],
+      [a.t + .3, { backgroundColor: 'rgba(110,170,255,.22)', boxShadow: 'inset 3px 0 0 0 rgba(110,170,255,1)' }]]);
+  });
+}
+function itemEl(it) { return el('div', 'item' + (it.nit ? ' nit' : ''), `${refLink(it.ref)}<div class="txt">${md(it.text)}</div>`); }
+function buildSummary(scene, root) {
+  const tests = el('div', 'pane tests'), c0 = scene.cues[0].start;
+  tests.style.height = 'auto';
+  tests.appendChild(el('div', 'card-title', 'TESTS'));
+  (scene.tests || []).forEach((name, i) => {
+    const t = el('div', 't', `<span class="ok">✓</span><span class="name">${esc(name)}</span>`);
+    tests.appendChild(t);
+    rise(t, c0 + .6 + i * .5, 8);
+    track($('.ok', t), [[c0 + .9 + i * .5, { transform: 'scale(0)' }], [c0 + 1.15 + i * .5, { transform: 'scale(1.4)' }], [c0 + 1.3 + i * .5, { transform: 'scale(1)' }]]);
+  });
+  root.appendChild(tests);
+  const items = el('div', 'items');
+  scene.items.forEach((it, i) => {
+    const e = itemEl(it);
+    items.appendChild(e);
+    const a = scene.actions.find(a => a.type === 'show' && a.arg === i);
+    const t = a ? a.t : c0 + .5 + i * .6;
+    track(e, [[t, { opacity: 0, transform: 'translateX(40px)' }], [t + .5, { opacity: 1, transform: 'translateX(0px)' }]]);
+  });
+  root.appendChild(items);
+}
+
+function buildTour() {
+  const host = $('#scenes');
+  SC.forEach((scene, i) => {
+    curGroup = groups[i];
+    const root = el('section', 'scene');
+    const head = el('div', 'head', `<div class="kicker">${linkify(esc(scene.kicker || scene.chapter))}</div><h1>${linkify(esc(scene.title))}</h1>`);
+    root.appendChild(head); host.appendChild(root);
+    ({ code: buildCode, stat: buildStat, summary: buildSummary })[scene.kind](scene, root);
+    rise(head, scene.start - .3);
+    curGroup = globalTracks;
+    const out = i + 1 < SC.length ? scene.end : D + 5;
+    track(root, [[scene.start - .5, { opacity: 0, transform: 'translateX(60px)' }], [scene.start + .25, { opacity: 1, transform: 'translateX(0px)' }],
+      [out - .25, { opacity: 1, transform: 'translateX(0px)' }], [out + .4, { opacity: 0, transform: 'translateX(-60px)' }]]);
+  });
+  track($('#glow'), SC.map((s, i) => [s.start, { transform: `translate(${(i % 3) * 420}px, ${(i % 2) * 180}px)` }]));
+  if (!DATA.audio) $('#stage').appendChild(el('div', '', '<span id="silent">silent preview</span>'));
+  checkLayout();
+}
+// Side columns and verdict lists that grow into the caption are the most common visual bug; make them loud.
+function checkLayout() {
+  const problems = [];
+  $$('.scene').forEach((s, i) => {
+    for (const col of $$('.side, .items', s)) {
+      const over = col.scrollHeight - SIDE_MAX;
+      if (over > 0) problems.push(`scene ${i} "${SC[i].title}": ${col.className} overflows by ${over}px`);
+    }
+  });
+  if (!problems.length) return;
+  problems.forEach(p => console.error('layout error: ' + p));
+  $('#stage').appendChild(el('div', '', `<div id="layout-errors">${problems.map(esc).join('<br>')}</div>`));
+}
+
+let activeScene = 0;
+function render(t) {
+  const set = list => { for (const { anim, t0, dur } of list) anim.currentTime = Math.min(Math.max(t - t0, 0), dur) * 1000; };
+  set(globalTracks);
+  activeScene = Math.max(SC.findLastIndex(s => t >= s.start - .4), 0);
+  groups.forEach((g, i) => { if (Math.abs(i - activeScene) <= 1) set(g); });
+  $$('.scene').forEach((s, i) => { s.classList.toggle('active', i === activeScene); s.classList.toggle('near', Math.abs(i - activeScene) <= 1); });
+  for (const c of customs) c.fn(Math.min(Math.max((t - c.t0) / c.dur, 0), 1));
+  updateChrome(t);
+}
+
+// ================= clock: real audio, or a silent stand-in for --no-audio previews =================
+function silentClock() {
+  let cur = 0, paused = true, rate = 1, last = 0;
+  const o = {
+    readyState: 4, preload: '', addEventListener() {},
+    get currentTime() { if (!paused) { const now = performance.now(); cur += (now - last) / 1000 * rate; last = now; if (cur >= D) { cur = D; paused = true; o.onended?.(); } } return cur; },
+    set currentTime(v) { cur = v; last = performance.now(); },
+    get paused() { return paused; },
+    play() { paused = false; last = performance.now(); o.onplay?.(); return Promise.resolve(); },
+    pause() { o.currentTime; paused = true; o.onpause?.(); },
+    get playbackRate() { return rate; }, set playbackRate(r) { o.currentTime; rate = r; },
+  };
+  return o;
+}
+const audio = DATA.audio ? new Audio(DATA.audio) : silentClock();
+audio.preload = 'auto';
+
+// ================= tour chrome =================
+const bar = $('#bar'), fill = $('#fill'), knob = $('#knob'), caption = $('#caption'), playBtn = $('#play'), timeEl = $('#time');
+const SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2];
+let t = 0, speedIdx = 1, lastCaption = null, scrubbing = false;
+const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+SC.forEach((s, i) => {
+  const ch = el('div', 'chapter', esc(s.chapter));
+  ch.style.left = (100 * s.start / D) + '%';
+  ch.style.width = (100 * (s.end - s.start) / D) + '%';
+  ch.onpointerdown = e => { e.stopPropagation(); seek(s.start + .01); };
+  bar.appendChild(ch);
+  if (i) { const tk = el('div', 'tick'); tk.style.left = `calc(${100 * s.start / D}% - 1px)`; bar.appendChild(tk); }
+});
+function currentCaption(t) {
+  let found = null;
+  SC.forEach(s => s.cues.forEach(c => { if (t >= c.start - .05 && t < s.end - .3) found = c.text; }));
+  return found;
+}
+function updateChrome(t) {
+  const p = 100 * t / D;
+  fill.style.width = p + '%'; knob.style.left = p + '%';
+  timeEl.textContent = `${fmt(t)} / ${fmt(D)}`;
+  $$('.chapter').forEach((c, i) => c.classList.toggle('cur', i === activeScene));
+  const cap = currentCaption(t);
+  if (cap !== lastCaption) {
+    lastCaption = cap;
+    caption.innerHTML = linkify(esc(cap || ''));
+    caption.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 250, easing: EASE });
+  }
+}
+function seek(nt) { t = Math.min(Math.max(nt, 0), D); if (audio.readyState >= 1) audio.currentTime = t; dismissStart(); render(t); }
+function scrubTo(e) { const r = $('#track').getBoundingClientRect(); seek(D * (e.clientX - r.left) / r.width); }
+bar.addEventListener('pointerdown', e => { scrubbing = true; bar.setPointerCapture(e.pointerId); scrubTo(e); });
+bar.addEventListener('pointermove', e => { if (scrubbing) scrubTo(e); });
+bar.addEventListener('pointerup', () => { scrubbing = false; });
+audio.addEventListener('loadedmetadata', () => { audio.currentTime = t; });
+function dismissStart() { $('#start')?.remove(); }
+function toggle() { dismissStart(); if (audio.paused) { if (t >= D - .05) seek(0); audio.play(); } else audio.pause(); }
+audio.onplay = () => playBtn.textContent = '❚❚';
+audio.onpause = audio.onended = () => playBtn.textContent = '▶';
+playBtn.onclick = toggle;
+$('#start .go').onclick = toggle;
+$('#startRead').onclick = e => { e.stopPropagation(); setMode('read', 0); };
+function setSpeed(i) { speedIdx = i; audio.playbackRate = SPEEDS[i]; $('#speed').textContent = SPEEDS[i] + '×'; }
+$('#speed').onclick = () => setSpeed((speedIdx + 1) % SPEEDS.length);
+$('#toRead').onclick = () => setMode('read', activeScene);
+addEventListener('keydown', e => {
+  if (document.body.classList.contains('mode-read')) return;
+  if (e.key === ' ') { e.preventDefault(); toggle(); }
+  else if (e.key === 'ArrowRight' && e.shiftKey) seek(SC[Math.min(activeScene + 1, SC.length - 1)].start + .01);
+  else if (e.key === 'ArrowLeft' && e.shiftKey) seek(SC[Math.max(t - SC[activeScene].start < 1.5 ? activeScene - 1 : activeScene, 0)].start + .01);
+  else if (e.key === 'ArrowRight') seek(t + 5);
+  else if (e.key === 'ArrowLeft') seek(t - 5);
+  else if (e.key === '=' || e.key === '+' || e.key === '>') setSpeed(Math.min(speedIdx + 1, SPEEDS.length - 1));
+  else if (e.key === '-' || e.key === '<') setSpeed(Math.max(speedIdx - 1, 0));
+  else if (e.key === 'r') setMode('read', activeScene);
+});
+function fit() { $('#stage').style.transform = `scale(${Math.min(innerWidth / 1280, innerHeight / 720)})`; }
+addEventListener('resize', fit); fit();
+
+// ================= read mode: the same scenes as a scrolling document =================
+// Rows no narration step points at are folded in runs, keeping two rows of context on each side.
+function foldPlan(rows, focused) {
+  const plan = rows.map(() => null);
+  if (!focused.size) return plan;
+  for (let i = 0; i < rows.length;) {
+    if (focused.has(i)) { i++; continue; }
+    let j = i;
+    while (j + 1 < rows.length && !focused.has(j + 1)) j++;
+    const a = i === 0 ? 0 : i + 2, b = j === rows.length - 1 ? j : j - 2;
+    if (b - a + 1 >= 8) for (let k = a; k <= b; k++) plan[k] = { start: a, n: b - a + 1 };
+    i = j + 1;
+  }
+  return plan;
+}
+let foldSeq = 0;
+function readHunk(h, si, hi) {
+  const box = el('div', 'hunk');
+  box.appendChild(hunkHead(h));
+  const body = el('div', 'hbody');
+  const focused = new Set(si == null ? [] : SC[si].actions.filter(a => a.type === 'focus').flatMap(a => a.rows).filter(([H]) => H === hi).map(([, r]) => r));
+  for (const [rows, cls] of [[h.rows, 'struct'], [h.raw || h.rows, 'raw']]) {
+    const list = el('div', 'rows ' + cls);
+    const plan = cls === 'struct' ? foldPlan(rows, focused) : rows.map(() => null);
+    let group = null;
+    rows.forEach((r, ri) => {
+      const p = plan[ri];
+      if (p && p.start === ri) {
+        group = 'f' + foldSeq++;
+        const g = group, n = p.n, fold = el('div', 'row rfold');
+        const label = open => `<span class="gut"><span class="ln"></span><span class="ln"></span><span class="sg">${open ? '▾' : '▸'}</span></span>` +
+          `<span class="cd">${open ? `collapse these ${n} lines` : `${n} lines not covered by the narration`}</span>`;
+        fold.innerHTML = label(false);
+        fold.onclick = () => {
+          const open = fold.classList.toggle('open');
+          fold.innerHTML = label(open);
+          $$(`#read .row[data-fold="${g}"]`).forEach(x => x.classList.toggle('rfolded', !open));
+        };
+        list.appendChild(fold);
+      }
+      const row = rowEl(r, h.isNew);
+      if (cls === 'struct' && si != null) row.dataset.key = `${si}:${hi}:${ri}`;
+      if (p) { row.classList.add('rfolded'); row.dataset.fold = group; }
+      list.appendChild(row);
+    });
+    body.appendChild(list);
+  }
+  box.appendChild(body);
+  return box;
+}
+function hotRows(si, rows, on) {
+  (rows || []).forEach(([h, r]) => $(`#read .row[data-key="${si}:${h}:${r}"]`)?.classList.toggle('hot', on));
+}
+function readSection(scene, si) {
+  const sec = el('section', 'rsec');
+  sec.id = 'sec-' + si;
+  const head = el('div', 'rhead', `<span class="kicker">${esc(scene.chapter)}</span><h2>${linkify(esc(scene.title))}</h2>`);
+  const play = el('button', 'ctl', '▶ from here');
+  play.onclick = () => { setMode('tour'); seek(scene.start + .01); if (audio.paused) toggle(); };
+  head.appendChild(play);
+  sec.appendChild(head);
+  if (scene.kind === 'stat') {
+    const box = el('div', 'rcode rstat term');
+    box.appendChild(el('div', 'cmd', `<span class="pr">$</span>${esc(META.statCommand)}<span class="totals">${totals()}</span>`));
+    const list = el('div', 'slist'); statRows(list, null); box.appendChild(list);
+    sec.appendChild(box);
+    sec.appendChild(stepsFor(scene, si));
+    return sec;
+  }
+  if (scene.kind === 'summary') {
+    const g = el('div', 'rgrid');
+    const tests = el('div', 'rcode');
+    tests.appendChild(el('div', 'card-title', 'TESTS'));
+    (scene.tests || []).forEach(n => tests.appendChild(el('div', 'row', `<span class="cd">✓ ${esc(n)}</span>`)));
+    const items = el('div', 'rsteps');
+    scene.items.forEach(it => items.appendChild(itemEl(it)));
+    g.append(tests, items);
+    sec.appendChild(g);
+    sec.appendChild(stepsFor(scene, si));
+    return sec;
+  }
+  const g = el('div', 'rgrid' + (scene.side === 'wide' ? ' wide' : ''));
+  const code = el('div', 'rcode');
+  scene.hunks.forEach((h, hi) => code.appendChild(readHunk(h, si, hi)));
+  g.append(code, stepsFor(scene, si));
+  sec.appendChild(g);
+  return sec;
+}
+// One block per narrated cue: the caption, then any note or widget it introduces. Hovering lights its rows.
+function stepsFor(scene, si) {
+  const col = el('div', 'rsteps');
+  const seen = new Set();
+  scene.cues.forEach(c => {
+    const step = el('div', 'rstep');
+    step.appendChild(el('div', 'say', md(c.text)));
+    const acts = scene.actions.filter(a => a.cue === c.i);
+    let rows = [];
+    for (const a of acts) {
+      if (a.type === 'focus') rows = rows.concat(a.rows);
+      if (a.type === 'note') { const n = noteEl(a); n.onmouseenter = () => hotRows(si, a.rows, true); n.onmouseleave = () => hotRows(si, a.rows, false); step.appendChild(n); }
+      if (a.type === 'widget' && !seen.has(a.name)) { seen.add(a.name); step.appendChild(W[scene.widgets[a.name].kind](scene.widgets[a.name])); }
+    }
+    step.onmouseenter = () => hotRows(si, rows, true);
+    step.onmouseleave = () => hotRows(si, rows, false);
+    col.appendChild(step);
+  });
+  return col;
+}
+function buildRead() {
+  $('#rtitle').innerHTML = `${esc(META.title)}<small>${linkify(esc(META.kicker))}</small>`;
+  const body = $('#rbody'), only = new URLSearchParams(location.search).get('only');
+  SC.forEach((s, i) => { if (only == null || +only === i) body.appendChild(readSection(s, i)); });
+  if (DATA.rest?.length && (only == null || only === 'rest')) {
+    const sec = el('section', 'rsec rest', `<div class="rhead"><span class="kicker">Not in the tour</span><h2>The rest of the diff</h2></div>`);
+    DATA.rest.forEach(f => {
+      const d = el('details');
+      const n = f.uncovered;
+      d.appendChild(el('summary', '', `${esc(f.file)}<span class="cnt">${n} changed line${n === 1 ? '' : 's'} not shown in the tour</span>`));
+      const box = el('div', 'rcode'); f.hunks.forEach(h => box.appendChild(readHunk(h, null, null)));
+      d.appendChild(box);
+      sec.appendChild(d);
+    });
+    body.appendChild(sec);
+  }
+}
+function setMode(mode, sceneIdx) {
+  if (mode === 'read' && !audio.paused) audio.pause();
+  dismissStart();
+  document.body.classList.toggle('mode-read', mode === 'read');
+  document.body.classList.toggle('mode-tour', mode === 'tour');
+  if (mode === 'read' && sceneIdx != null) $('#sec-' + sceneIdx)?.scrollIntoView({ block: 'start' });
+  if (mode === 'tour') fit();
+}
+$('#playTour').onclick = () => { setMode('tour'); if (audio.paused) toggle(); };
+const toggleBtn = (id, cls, invert) => { const b = $(id); b.onclick = () => { const on = document.body.classList.toggle(cls); b.classList.toggle('on', invert ? !on : on); }; };
+toggleBtn('#tStruct', 'raw-diff', true);
+
+document.fonts.ready.then(() => {
+  buildTour();
+  buildRead();
+  const q = new URLSearchParams(location.search);
+  if (q.get('t')) { dismissStart(); t = +q.get('t'); }
+  if (q.get('mode') === 'read') setMode('read', q.get('scene'));
+  if (q.has('raw')) $('#tStruct').click();
+  render(t);
+  (function frame() {
+    if (!audio.paused && !scrubbing) t = audio.currentTime;
+    if (document.body.classList.contains('mode-tour')) render(t);
+    requestAnimationFrame(frame);
+  })();
+});
+</script>
+</body>
+</html>

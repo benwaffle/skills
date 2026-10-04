@@ -1,0 +1,96 @@
+# A fictional spec showing every feature. It won't build: the repo and its markers don't exist.
+# Real specs live next to the PR's thread (e.g. $BB_THREAD_STORAGE/pr-explainer/pr<N>/spec.yaml), never in this repo.
+repo: ~/dev/widgets
+base: origin/main
+github: acme/widgets
+pr: 42
+title: Retry failed webhook deliveries
+kicker: "PR #42 · WEB-7"
+jira: { site: https://example.atlassian.net, projects: [WEB] }
+lexicon:
+  cfg: spell
+
+scenes:
+  - kind: stat
+    chapter: Overview
+    title: Failed webhooks are retried with backoff instead of dropped
+    cues:
+      - say: "PR #42 retries webhook deliveries that fail, instead of dropping them. It closes WEB-7."
+        speak: "PR forty two retries webhook deliveries that fail, instead of dropping them. It closes web seven."
+      - say: "Most of the change is one new file. Let's start with the [[x]]retry policy."
+        do:
+          - { hl: internal/webhook/retry.go, at: x }
+
+  - kind: code
+    chapter: The policy
+    kicker: New file
+    title: "retry.go: how long to wait, and when to stop"
+    hunks:
+      - { file: internal/webhook/retry.go, from: "type RetryPolicy struct {", to: "re:^}$", extra: 1, mode: type }
+      - { file: internal/webhook/retry.go, from: "func (p RetryPolicy) Next(", to: "re:^}$" }
+    widgets:
+      waits:
+        kind: table
+        title: Wait before each attempt
+        columns: ["Attempt", "Wait", ""]
+        mono: [0, 1]
+        rows:
+          - ["1", "1s", ""]
+          - { cells: ["2", "2s", ""], step: 1 }
+          - { cells: ["3", "4s", ""], step: 1 }
+          - { cells: ["4", "—", "bad: gives up"], step: 2 }
+    cues:
+      - say: "A [[p]]policy has a base delay and a maximum number of attempts."
+        do:
+          - { focus: [["type RetryPolicy struct {", "re:^}$", 0]], at: p }
+          - { widget: waits, step: 0, at: p }
+      - say: "Next [[n]]doubles the delay on every attempt, so the waits go 1, 2, 4 seconds."
+        speak: "Next doubles the delay on every attempt, so the waits go one, two, four seconds."
+        do:
+          - { focus: [["func (p RetryPolicy) Next(", "re:^}$", 1]], at: n }
+          - { widget: waits, step: 1, at: end }
+      - say: "Review note. After the [[m]]last attempt the event is dropped silently, with no log line and no metric."
+        do:
+          - { focus: [["return 0, false", null, 1]], at: m }
+          - { widget: waits, step: 2, at: m }
+          - { review: "Dropping after `MaxAttempts` leaves no trace. Log it, or send the event to the dead-letter queue.", at: end }
+
+  - kind: code
+    chapter: The caller
+    kicker: "deliver.go"
+    title: The sender loops until the policy says stop
+    hunks:
+      - { file: internal/webhook/deliver.go, from: "func (s *Sender) Deliver(", to: "re:^}$", mode: morph }
+    widgets:
+      loop:
+        kind: flow
+        title: One delivery
+        nodes:
+          - { label: "`post(event)`", sub: "HTTP POST to the subscriber" }
+          - { label: "`policy.Next(attempt)`", sub: "wait, or stop", tone: key }
+          - { label: "`time.Sleep(wait)`", tone: hot, step: 1, branch: { label: "blocks the worker", tone: err, step: 1 } }
+    cues:
+      - say: "Deliver used to post once and [[m]]return. Now it loops."
+        do:
+          - { morph: 0, at: m }
+          - { focus: [["+:for attempt := 1;", "re:^\t}$"]], at: end }
+          - { widget: loop, step: 0, at: end }
+      - say: "Review note. It [[s]]sleeps on the worker goroutine, so one slow subscriber stalls every delivery behind it."
+        do:
+          - { focus: [["+:time.Sleep(wait)", null]], at: s }
+          - { widget: loop, step: 1, at: s }
+          - { review: "`time.Sleep` holds the worker. Schedule the retry on a timer or a delay queue instead." }
+
+  - kind: summary
+    chapter: Verdict
+    title: Right idea; don't block the worker, and don't drop silently
+    tests: [TestRetryPolicyNext, "TestDeliverRetries  (3 cases)"]
+    items:
+      - { file: internal/webhook/deliver.go, marker: "time.Sleep(wait)", text: "Retries block the worker. Schedule them instead." }
+      - { file: internal/webhook/retry.go, marker: "return 0, false", text: "The final failure leaves no trace. Log it or dead-letter it." }
+    cues:
+      - say: "The policy is tested on its own, and delivery is tested with a fake subscriber."
+      - say: "Before merging, I'd [[a]]move the wait off the worker, and [[b]]record the final failure."
+        do:
+          - { show: 0, at: a }
+          - { show: 1, at: b }

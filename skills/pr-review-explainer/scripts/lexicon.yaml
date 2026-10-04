@@ -1,0 +1,76 @@
+# Pronunciations Kokoro gets wrong. Shared across every PR, so add terms here as you find them.
+# `spell` terms are read letter by letter (SAR -> "ess ay ar"); `ipa` terms are written out in full.
+# A spec can add its own with `lexicon: {TERM: spell}` or `lexicon: {TERM: "<ipa>"}`.
+# Check the phoneme dump the build prints for any cue with capitals or digits.
+
+spell:
+  # general
+  - PR
+  - ID
+  - API
+  - CI
+  - DB
+  - SQL
+  - XML
+  - XSD
+  - JSON
+  - YAML
+  - URI
+  - URL
+  - HTTP
+  - TLS
+  - AWS
+  - TTL
+  - UUID
+  # 4G / 5G / IMS
+  - HSS
+  - UDM
+  - UDR
+  - MME
+  - AMF
+  - SMF
+  - AVP
+  - AVPs
+  - ULR
+  - AIR
+  - PUR
+  - NOR
+  - SAR
+  - SAA
+  - MAR
+  - MAA
+  - UAR
+  - LIR
+  - PLMN
+  - TAS
+  - SMSC
+  - SPT
+  - SPTs
+  - SIP
+  - SDP
+  - IMPU
+  - IMPI
+  - IMPUs
+  - IMPIs
+  - CNF
+  - DNF
+  - TS
+  - S-CSCF
+  - P-CSCF
+  - I-CSCF
+
+ipa:
+  IMSI: "ˈɪmzi"
+  S6a: "ˌɛs sˌɪks ˈeɪ"
+  S6d: "ˌɛs sˌɪks dˈiː"
+  Cx: "sˌiː ˈɛks"
+  iFC: "ˌaɪ ˌɛf sˈiː"
+  iFCs: "ˌaɪ ˌɛf sˈiːz"
+  Failed-AVP: "fˈeɪld ˌeɪvˌiːpˈiː"
+  ULR-Flags: "jˌuː ˌɛl ˈɑːɹ flˈæɡz"
+  AvpError: "ˌeɪvˌiːpˈiː ˈɛɹɚ"
+  AvpSpec: "ˌeɪvˌiːpˈiː spˈɛk"
+  VoLTE: "vˈoʊlteɪ"
+  Diameter: "daɪˈæmɪtɚ"
+  multierr: "mˈʌltiː ˈɛɹɚ"
+  difftastic: "dɪftˈæstɪk"
