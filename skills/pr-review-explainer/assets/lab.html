@@ -1,0 +1,459 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Diff experiments</title>
+<style>/*CSS*/</style>
+<style>
+  .lab-intro { color: #c5cad6; max-width: 900px; margin: 22px 0 4px; font-size: 14.5px; line-height: 1.55; }
+  .toc { display: flex; gap: 6px; flex-wrap: wrap; }
+  .toc a { font-size: 12.5px; padding: 2px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--dim); }
+  .toc a:hover { color: var(--fg); text-decoration: none; border-color: var(--dim); }
+  .toc a .v { margin-left: 5px; }
+  .v.keep { color: var(--green); } .v.maybe { color: var(--amber); } .v.drop { color: var(--red); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-left: auto; }
+  .seg button { background: none; border: 0; color: var(--dim); padding: 4px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+  .seg button.on { background: var(--panel2); color: var(--fg); }
+  .why { color: #c5cad6; font-size: 14px; line-height: 1.55; max-width: 900px; margin: -4px 0 14px; }
+  .why b { color: var(--fg); font-weight: 600; }
+  .why code { font-family: var(--mono); font-size: .88em; background: #252935; padding: 0 4px; border-radius: 4px; }
+  .lsec .view { display: none; }
+  .lsec[data-view=exp] .view.exp, .lsec[data-view=today] .view.today { display: block; }
+  .verdict { display: flex; gap: 8px; align-items: center; margin: 16px 0 6px; font-size: 13px; color: var(--dim); }
+  .verdict button { background: var(--panel2); color: var(--dim); border: 1px solid var(--line); border-radius: 8px; padding: 4px 12px; font: inherit; cursor: pointer; }
+  .verdict button.on.keep { color: var(--green); border-color: var(--green); }
+  .verdict button.on.maybe { color: var(--amber); border-color: var(--amber); }
+  .verdict button.on.drop { color: var(--red); border-color: var(--red); }
+  .verdict input { flex: 1; max-width: 560px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; color: var(--fg); padding: 5px 10px; font: inherit; }
+  .group { font-family: var(--mono); font-size: 12px; color: var(--dim); margin: 14px 0 6px; }
+  .note-line { color: var(--dim); font-size: 13px; margin: 0 0 10px; }
+
+  /* change summaries */
+  .hhead.click { cursor: pointer; user-select: none; }
+  .hhead.click:hover .base { color: var(--blue); }
+  .hhead .tw { color: var(--dim); width: 10px; font-family: -apple-system, sans-serif; }
+  .hchips { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 14px 7px 34px; background: var(--panel2); border-bottom: 1px solid var(--line); }
+  .xc { font-family: var(--mono); font-size: 11.5px; padding: 1px 7px; border-radius: 4px; cursor: pointer; white-space: nowrap; border: 0; }
+  .xc.add { background: #1f3a2b; color: #8fe0ad; } .xc.del { background: #3a2226; color: #f2a3a3; } .xc.mod { background: #3d3220; color: #ffd08a; }
+  .xc.more { background: #2b3040; color: var(--dim); }
+  .xc:hover { filter: brightness(1.25); }
+  .hunk.closed .hbody { display: none; }
+  .hunk.closed .hchips { border-bottom: 0; }
+
+  /* types */
+  .tcard { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; margin: 0 0 12px; overflow: hidden; max-width: 1060px; }
+  .tcard .th { display: flex; gap: 8px; align-items: baseline; padding: 8px 14px; background: var(--panel2); border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 13px; }
+  .tcard .th .kw { color: var(--violet); } .tcard .th .nm { font-weight: 650; } .tcard .th .sh { color: var(--dim); }
+  .tcard .th .loc { margin-left: auto; color: var(--dim); font-size: 11.5px; }
+  .tcard .doc { padding: 7px 14px 0; color: var(--dim); font-size: 13px; line-height: 1.45; }
+  .tcard .meth { padding: 6px 14px 0; display: flex; gap: 5px; flex-wrap: wrap; align-items: baseline; font-size: 12px; color: var(--dim); }
+  .tgrid { display: grid; padding: 6px 0 8px; font-size: 13px; }
+  .tgrid.fields { grid-template-columns: max-content max-content max-content minmax(0, 1fr); }
+  .tgrid.vals { grid-template-columns: max-content max-content minmax(0, 1fr); }
+  .tgrid > div { padding: 3px 14px; border-top: 1px solid #20242f; }
+  .tgrid .h { color: var(--dim); font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; border-top: 0; padding-bottom: 4px; }
+  .f-name, .f-type, .f-xml { font-family: var(--mono); font-size: 12.5px; }
+  .f-type { color: #c5cad6; } .f-xml { color: var(--dim); } .f-doc { color: var(--dim); font-size: 12.5px; }
+  .badge { font-family: -apple-system, sans-serif; font-size: 10.5px; border-radius: 4px; padding: 0 5px; margin-right: 4px; vertical-align: 1px; }
+  .b-opt { background: #3d3220; color: #ffd08a; } .b-list { background: #22324d; color: #9cc4ff; } .b-map { background: #33284a; color: #d3b0ff; }
+  .b-new { background: #1f3a2b; color: #8fe0ad; } .b-emb, .b-ptr { background: #2b3040; color: var(--dim); }
+  .ttable .pre { color: #4d5466; cursor: help; }
+  .tref { background: none; border: 0; color: var(--blue); font: inherit; cursor: pointer; padding: 0; }
+  .tref:hover { text-decoration: underline; }
+  .tgrid > .nest { grid-column: 1 / -1; padding: 2px 14px 10px 34px; border-top: 0; }
+  .nest .tcard { margin: 0; }
+  .v-val { font-family: var(--mono); font-size: 12.5px; color: var(--amber); text-align: right; }
+
+  /* tests */
+  .tbl-wrap { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-bottom: 12px; }
+  .tbl-head { padding: 8px 14px; background: var(--panel2); border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 13px; display: flex; gap: 10px; }
+  .tbl-head .cnt { color: var(--dim); margin-left: auto; font-size: 12px; }
+  .ttable { border-collapse: collapse; width: 100%; font-size: 13px; }
+  .ttable th { text-align: left; color: var(--dim); font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; font-weight: 500; padding: 7px 12px; border-bottom: 1px solid var(--line); }
+  .ttable td { padding: 5px 12px; border-bottom: 1px solid #20242f; vertical-align: top; }
+  .ttable tr:last-child td { border-bottom: 0; }
+  .ttable td.num { color: #4d5466; font-family: var(--mono); font-size: 11.5px; width: 24px; text-align: right; padding-right: 0; }
+  .ttable td.code { font-family: var(--mono); font-size: 12px; color: #c5cad6; white-space: pre-wrap; word-break: break-word; }
+  .ttable td.str { font-family: var(--mono); font-size: 12px; color: #a8dcb8; }
+  .ttable td.empty { color: #4d5466; font-family: var(--mono); font-size: 12px; }
+  .ttable .more { color: var(--blue); cursor: pointer; font-family: -apple-system, sans-serif; font-size: 11.5px; margin-left: 6px; white-space: nowrap; }
+  .ttable tr.added td.num { box-shadow: inset 3px 0 0 var(--green); } .ttable tr.changed td.num { box-shadow: inset 3px 0 0 var(--amber); }
+  .ttable tr:hover td { background: rgba(110,170,255,.05); }
+  .runs { padding: 8px 14px 4px; color: var(--dim); font-size: 12.5px; border-top: 1px solid var(--line); }
+
+  /* happy path */
+  #read .row.hp { cursor: pointer; }
+  .row.hp .sg { color: var(--violet); }
+  .hp-init { color: #c5cad6; } .hp-act { color: #7d8496; font-style: italic; font-family: -apple-system, sans-serif; font-size: 12px; }
+  .row.hp:hover .hp-act { color: var(--blue); }
+  .row.hp.open .hp-act { color: var(--blue); }
+  .hhead .count { color: var(--dim); margin-left: auto; font-size: 12px; }
+
+  #verdicts textarea { width: 100%; max-width: 900px; height: 110px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; color: var(--fg); font: 13px var(--mono); padding: 10px; }
+</style>
+</head>
+<body class="mode-read">
+<div id="read">
+  <div id="rbar"><div class="ttl" id="rtitle"></div><div class="toc" id="toc"></div></div>
+  <div id="rbody"></div>
+</div>
+<script>
+const DATA = /*DATA*/null;
+const META = DATA.meta;
+const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const splitPath = p => { const i = p.lastIndexOf('/'); return `<span class="path"><span class="dir">${esc(p.slice(0, i + 1))}</span><span class="base">${esc(p.slice(i + 1))}</span></span>`; };
+const base = p => p.slice(p.lastIndexOf('/') + 1);
+const KIND = { '+': 'add', '-': 'del', ' ': 'ctx', '~': 'cos', '±': 'mod' };
+const SIGN = { '+': '+', '-': '−', ' ': '', '~': '≈', '±': '±' };
+function rowEl(r, isNew) {
+  const row = el('div', 'row ' + KIND[r.k] + (r.k === '+' && isNew ? ' newfile' : ''));
+  const gut = el('span', 'gut');
+  gut.append(el('span', 'ln', r.o ?? ''), el('span', 'ln', r.n ?? ''), el('span', 'sg', SIGN[r.k]));
+  row.append(gut, el('span', 'cd', r.h || ' '));
+  if (r.n != null) row.dataset.n = r.n;
+  if (r.o != null) row.dataset.o = r.o;
+  return row;
+}
+function head(w, extra = '') {
+  return el('div', 'hhead', `<a href="${esc(w.url)}" target="_blank" rel="noopener">${splitPath(w.file)}</a>${w.isNew ? '<span class="newf">new file</span>' : ''}${extra}<span class="rng">${w.range}</span>`);
+}
+function hunk(w, rows = w.rows) {
+  const box = el('div', 'hunk');
+  box.appendChild(head(w));
+  const body = el('div', 'hbody'), list = el('div', 'rows');
+  rows.forEach(r => list.appendChild(rowEl(r, w.isNew)));
+  body.appendChild(list);
+  box.appendChild(body);
+  return box;
+}
+const panel = children => { const p = el('div', 'rcode'); children.forEach(c => c && p.appendChild(c)); return p; };
+
+// ================= 1. change summaries =================
+const CHIPS_SHOWN = 6;
+function chipsView() {
+  const root = el('div');
+  DATA.chips.forEach(f => {
+    const p = el('div', 'rcode');
+    p.style.marginBottom = '12px';
+    f.hunks.forEach(w => {
+      const box = el('div', 'hunk closed');
+      const h = head(w, '');
+      h.classList.add('click');
+      const tw = el('span', 'tw', '▸');
+      h.prepend(tw);
+      const setOpen = open => { box.classList.toggle('closed', !open); tw.textContent = open ? '▾' : '▸'; };
+      h.onclick = e => { if (e.target.closest('a')) return; setOpen(box.classList.contains('closed')); };
+      box.appendChild(h);
+      const strip = el('div', 'hchips');
+      const chips = w.chips.map(c => {
+        const b = el('button', 'xc ' + c.kind, esc(c.text));
+        b.title = `${c.side === 'new' ? 'line' : 'old line'} ${c.line}`;
+        b.onclick = () => {
+          setOpen(true);
+          $$('.row.hot', box).forEach(r => r.classList.remove('hot'));
+          const row = $(`.row[data-${c.side === 'new' ? 'n' : 'o'}="${c.line}"]`, box);
+          if (row) { row.classList.add('hot'); row.scrollIntoView({ block: 'nearest' }); }
+        };
+        return b;
+      });
+      chips.forEach((b, i) => { if (i >= CHIPS_SHOWN) b.hidden = true; strip.appendChild(b); });
+      if (chips.length > CHIPS_SHOWN) {
+        const more = el('button', 'xc more');
+        const label = open => open ? 'show fewer' : `+${chips.length - CHIPS_SHOWN} more`;
+        more.textContent = label(false);
+        more.onclick = () => { const open = chips[CHIPS_SHOWN].hidden; chips.slice(CHIPS_SHOWN).forEach(b => b.hidden = !open); more.textContent = label(open); };
+        strip.appendChild(more);
+      }
+      if (!chips.length) strip.appendChild(el('span', 'xc more', 'no declaration changes'));
+      box.appendChild(strip);
+      const body = el('div', 'hbody'), list = el('div', 'rows');
+      w.rows.forEach(r => list.appendChild(rowEl(r, w.isNew)));
+      body.appendChild(list);
+      box.appendChild(body);
+      p.appendChild(box);
+    });
+    root.appendChild(p);
+  });
+  return root;
+}
+function chipsToday() {
+  const root = el('div');
+  DATA.chips.forEach(f => { const p = panel(f.hunks.map(w => hunk(w))); p.style.marginBottom = '12px'; root.appendChild(p); });
+  return root;
+}
+
+// ================= 2. types as components =================
+const T = DATA.types.types;
+// A pointer only means "optional" when the field can be left out; otherwise it is just a pointer.
+function badge(m, f) {
+  if (m === 'pointer') return f.xml?.omitempty ? ['b-opt', 'optional'] : ['b-ptr', 'pointer'];
+  if (m === 'list') return ['b-list', 'list of'];
+  return ['b-map', esc(m.replace(/^map\[(.*)\]$/, 'map $1 →'))];
+}
+function typeCell(f, seen, onRef) {
+  const cell = el('div', 'f-type');
+  f.mods.forEach(m => { const [cls, label] = badge(m, f); cell.appendChild(el('span', 'badge ' + cls, label)); });
+  if (f.ref && T[f.ref] && !seen.has(f.ref)) {
+    const b = el('button', 'tref', `▸ ${esc(f.base)}`);
+    b.onclick = () => onRef(b, f.ref);
+    cell.appendChild(b);
+  } else cell.appendChild(el('span', '', esc(f.base)));
+  return cell;
+}
+function card(name, seen = new Set()) {
+  const t = T[name], c = el('div', 'tcard');
+  const shape = t.fields ? 'struct' : t.values ? `${t.underlying} · enum` : t.underlying;
+  c.appendChild(el('div', 'th', `<span class="kw">type</span><span class="nm">${esc(name)}</span><span class="sh">${esc(shape)}</span><span class="loc">${esc(base(t.file))}:${t.line}</span>`));
+  if (t.doc) c.appendChild(el('div', 'doc', esc(t.doc)));
+  if (t.methods?.length) c.appendChild(el('div', 'meth', 'methods ' + t.methods.map(m => `<span class="chip">${esc(m)}()</span>`).join(' ')));
+  const inner = new Set([...seen, name]);
+  if (t.fields?.length) {
+    const hasXml = t.fields.some(f => f.xml), hasDoc = t.fields.some(f => f.doc);
+    const g = el('div', 'tgrid fields');
+    g.style.gridTemplateColumns = ['max-content', 'max-content', hasXml && 'max-content', 'minmax(0, 1fr)'].filter(Boolean).join(' ');
+    ['field', 'type', hasXml && 'xml', hasDoc ? 'note' : ''].filter(h => h !== false).forEach(h => g.appendChild(el('div', 'h', h)));
+    t.fields.forEach(f => {
+      const nameCell = el('div', 'f-name', (f.added ? '<span class="badge b-new">new</span>' : '') + (f.embedded ? '<span class="badge b-emb">embedded</span>' : '') + esc(f.name));
+      const xml = hasXml ? el('div', 'f-xml', f.xml ? (f.xml.attr ? `@${esc(f.xml.name)}` : `&lt;${esc(f.xml.name)}&gt;`) : '') : null;
+      const note = el('div', 'f-doc', esc(f.doc || ''));
+      const onRef = (btn, ref) => {
+        const open = note.nextElementSibling?.classList.contains('nest') ? note.nextElementSibling : null;
+        if (open) { open.remove(); btn.textContent = `▸ ${f.base}`; return; }
+        const nest = el('div', 'nest');
+        nest.appendChild(card(ref, inner));
+        note.after(nest);
+        btn.textContent = `▾ ${f.base}`;
+      };
+      g.append(...[nameCell, typeCell(f, inner, onRef), xml, note].filter(Boolean));
+    });
+    c.appendChild(g);
+  }
+  if (t.values?.length) {
+    const g = el('div', 'tgrid vals');
+    ['value', 'name', 'note'].forEach(h => g.appendChild(el('div', 'h', h)));
+    t.values.forEach(v => g.append(el('div', 'v-val', esc(v.value)), el('div', 'f-name', esc(v.name)), el('div', 'f-doc', esc(v.doc || ''))));
+    c.appendChild(g);
+  }
+  return c;
+}
+function typesView() {
+  const root = el('div');
+  const { featured, roots } = DATA.types;
+  root.appendChild(el('p', 'note-line', `${featured.length} types are new or changed in this PR. These ${roots.length} contain the rest; open a field's type to see it in place.`));
+  roots.forEach(n => root.appendChild(card(n)));
+  return root;
+}
+function typesToday() { return panel(DATA.types.today.map(w => hunk(w))); }
+
+// ================= 3. table-driven tests as tables =================
+const CELL_MAX = 72, PREFIX_MIN = 24, PREFIX_ROWS = 3, REST_MIN = 16;
+// The longest start a cell shares with at least two other rows in its column, cut back to a token boundary: in a test
+// table that part is boilerplate, and the rest is what makes the case different.
+function sharedPrefixes(cells) {
+  const flat = cells.map(c => c && c.str == null ? c.code.replace(/\s+/g, ' ') : null);
+  return flat.map((a, i) => {
+    if (a == null) return 0;
+    const shared = flat.map((b, j) => {
+      if (j === i || b == null) return 0;
+      let k = 0;
+      while (k < a.length && k < b.length && a[k] === b[k]) k++;
+      return k;
+    }).sort((x, y) => y - x);
+    const best = shared[PREFIX_ROWS - 2] || 0;
+    const cut = Math.max(...['(', '`', ' ', '>', ','].map(ch => a.lastIndexOf(ch, best - 1) + 1));
+    return cut >= PREFIX_MIN && a.length - cut >= REST_MIN ? cut : 0;
+  });
+}
+function testCell(c, col, prefix) {
+  if (!c) return el('td', 'empty', '—');
+  if (c.str != null && !c.multiline) {
+    if (c.str === '') return el('td', 'empty', '""');
+    return el('td', col === 'name' || col === 'desc' ? '' : 'str', esc(c.str));
+  }
+  const td = el('td', 'code');
+  const full = c.code, flat = full.replace(/\s+/g, ' ');
+  const rest = flat.slice(prefix);
+  const pre = prefix ? `<span class="pre" title="${esc(flat.slice(0, prefix))}">…</span>` : '';
+  if (rest.length <= CELL_MAX) { td.innerHTML = pre + esc(rest); return td; }
+  const text = el('span', '', pre + esc(rest.slice(0, CELL_MAX - 1) + '…'));
+  const more = el('span', 'more', 'more');
+  more.onclick = () => {
+    const open = more.textContent === 'less';
+    text.innerHTML = open ? pre + esc(rest.slice(0, CELL_MAX - 1) + '…') : esc(full.replace(/^\t+/gm, '  '));
+    more.textContent = open ? 'more' : 'less';
+  };
+  td.append(text, more);
+  return td;
+}
+function testsView() {
+  const root = el('div');
+  DATA.tests.forEach(t => {
+    const wrap = el('div', 'tbl-wrap');
+    const added = t.rows.filter(r => r.mark === 'added').length, changed = t.rows.filter(r => r.mark === 'changed').length;
+    const marks = t.isNew ? 'new test' : [added && `${added} added`, changed && `${changed} changed`].filter(Boolean).join(', ') || 'cases unchanged';
+    wrap.appendChild(el('div', 'tbl-head', `<span>${esc(base(t.file))}</span><b>${esc(t.func)}</b><span class="cnt">${t.rows.length} cases · ${marks}</span>`));
+    const table = el('table', 'ttable');
+    const tr = el('tr');
+    tr.appendChild(el('th', '', ''));
+    t.columns.forEach(c => tr.appendChild(el('th', '', esc(c))));
+    table.appendChild(el('thead')).appendChild(tr);
+    const tb = el('tbody');
+    const prefixes = Object.fromEntries(t.columns.map(c => [c, sharedPrefixes(t.rows.map(r => r.cells[c]))]));
+    t.rows.forEach((r, i) => {
+      const row = el('tr', r.mark || '');
+      row.appendChild(el('td', 'num', i + 1));
+      t.columns.forEach(c => row.appendChild(testCell(r.cells[c], c, prefixes[c][i])));
+      tb.appendChild(row);
+    });
+    table.appendChild(tb);
+    wrap.appendChild(table);
+    if (t.loopWindow) {
+      wrap.appendChild(el('div', 'runs', `Each case runs <code>${esc(t.var)}</code> through:`));
+      const list = el('div', 'rows');
+      t.loopWindow.rows.forEach(r => list.appendChild(rowEl(r, t.isNew)));
+      const body = el('div', 'hbody'); body.appendChild(list);
+      wrap.appendChild(body);
+    }
+    root.appendChild(wrap);
+  });
+  return root;
+}
+function testsToday() { return panel(DATA.tests.map(t => hunk(t.today))); }
+
+// ================= 4. happy path =================
+function happyView() {
+  const root = el('div');
+  DATA.happy.forEach(ex => {
+    const w = ex.window;
+    const box = el('div', 'hunk');
+    const list = el('div', 'rows');
+    let fold = null, hidden = 0;
+    w.rows.forEach(r => {
+      const start = r.n != null ? ex.folds.find(f => f.start === r.n) : null;
+      if (start) {
+        fold = start;
+        const n = start.end - start.start + 1;
+        const row = el('div', 'row ctx hp');
+        const gut = el('span', 'gut');
+        gut.append(el('span', 'ln', ''), el('span', 'ln', r.n), el('span', 'sg', '⤷'));
+        const indent = (el('span', '', r.h).textContent.match(/^\s*/) || [''])[0];
+        const code = indent + (start.init ? `<span class="hp-init">${esc(start.init)}</span>   ` : '') + `<span class="hp-act">on error: ${esc(start.action)}</span>`;
+        const cd = el('span', 'cd', code);
+        row.append(gut, cd);
+        const id = `hp${start.start}-${base(ex.file)}`;
+        row.onclick = () => {
+          const open = row.classList.toggle('open');
+          $$(`.row[data-hp="${id}"]`, box).forEach(x => x.style.display = open ? '' : 'none');
+          row.title = open ? 'fold the error handling again' : `${n} lines of error handling`;
+        };
+        row.title = `${n} lines of error handling`;
+        list.appendChild(row);
+        start._id = id;
+      }
+      const row = rowEl(r, w.isNew);
+      if (fold && (r.n == null || r.n <= fold.end)) {
+        row.dataset.hp = fold._id;
+        row.style.display = 'none';
+        hidden++;
+      }
+      list.appendChild(row);
+      if (fold && r.n === fold.end) fold = null;
+    });
+    const shown = w.rows.length - hidden + ex.folds.length;
+    box.appendChild(head(w, `<span class="count">${esc(ex.func)} · ${w.rows.length} → ${shown} lines</span>`));
+    $('.rng', box).remove();
+    const body = el('div', 'hbody'); body.appendChild(list);
+    box.appendChild(body);
+    root.appendChild(panel([box])).style.marginBottom = '12px';
+  });
+  return root;
+}
+function happyToday() {
+  const root = el('div');
+  DATA.happy.forEach(ex => { root.appendChild(panel([hunk(ex.window)])).style.marginBottom = '12px'; });
+  return root;
+}
+
+// ================= page =================
+const EXPS = [
+  { id: 'chips', title: 'Change summaries on every hunk', exp: chipsView, today: chipsToday, n: () => DATA.chips.length,
+    why: 'Each hunk header lists what changed inside it: declarations added or removed, new params, fields and call arguments, and a +/− count for edited function bodies (alignment-only lines don\'t count). Hunks start folded, so the PR reads as an outline. Click a header to open the hunk; click a chip to open it at that line. <b>Look for:</b> can you tell what a hunk does without opening it, and which hunks you can skip?' },
+  { id: 'types', title: 'Types as components', exp: typesView, today: typesToday, n: () => DATA.types.featured.length,
+    why: 'Struct declarations as cards: one row per field, <code>*T</code> shown as an <b>optional</b> badge and <code>[]T</code> as <b>list of</b>, the XML element each field maps to, and the methods defined on the type. Enum types (<code>type X int</code> plus <code>iota</code> consts) show their values. A field whose type is declared in the PR opens that type\'s card in place. <b>Look for:</b> does the data model read faster than the struct declarations?' },
+  { id: 'tests', title: 'Table-driven tests as tables', exp: testsView, today: testsToday, n: () => DATA.tests.length,
+    why: 'A <code>[]struct{…}{…}</code> test table as a real table: one row per case, one column per field, string values unquoted, long expressions folded (click <b>more</b>). Added or changed cases get a colored edge; the loop that runs each case is underneath. <b>Look for:</b> can you see what is covered, and what isn\'t, at a glance?' },
+  { id: 'happy', title: 'Happy path', exp: happyView, today: happyToday, n: () => DATA.happy.length,
+    why: 'Each <code>if err != nil { … }</code> block folds into one line: the call it guards, then what it does on error, in grey. Click a folded line to open it again. <b>Look for:</b> does the main flow read better, and do you miss anything from the folded lines?' },
+];
+const KEY = `lab-verdicts:${META.github}#${META.pr}`;
+const verdicts = JSON.parse(localStorage.getItem(KEY) || '{}');
+const MARK = { keep: '✓', maybe: '?', drop: '✗' };
+function saveVerdicts() {
+  localStorage.setItem(KEY, JSON.stringify(verdicts));
+  $('#toc').innerHTML = EXPS.map(x => `<a href="#x-${x.id}">${esc(x.title)}${verdicts[x.id]?.v ? `<span class="v ${verdicts[x.id].v}">${MARK[verdicts[x.id].v]}</span>` : ''}</a>`).join('');
+  const ta = $('#verdicts textarea');
+  if (ta) ta.value = EXPS.map(x => `${x.title}: ${verdicts[x.id]?.v || '(no verdict)'}${verdicts[x.id]?.note ? ' — ' + verdicts[x.id].note : ''}`).join('\n');
+}
+
+function section(x, i, view) {
+  const sec = el('section', 'rsec lsec');
+  sec.id = 'x-' + x.id;
+  sec.dataset.view = view;
+  const h = el('div', 'rhead', `<span class="kicker">Experiment ${i + 1}</span><h2>${esc(x.title)}</h2>`);
+  const seg = el('div', 'seg');
+  [['today', 'Today'], ['exp', 'Experiment']].forEach(([v, label]) => {
+    const b = el('button', v === view ? 'on' : '', label);
+    b.onclick = () => { sec.dataset.view = v; $$('button', seg).forEach(o => o.classList.toggle('on', o === b)); };
+    seg.appendChild(b);
+  });
+  h.appendChild(seg);
+  sec.appendChild(h);
+  sec.appendChild(el('p', 'why', x.why));
+  if (!x.n()) {
+    sec.appendChild(el('p', 'note-line', 'Nothing in this PR to try it on.'));
+    return sec;
+  }
+  const exp = el('div', 'view exp'), today = el('div', 'view today');
+  exp.appendChild(x.exp());
+  today.appendChild(x.today());
+  sec.append(exp, today);
+  const v = el('div', 'verdict', 'Verdict');
+  const note = el('input');
+  note.placeholder = 'why, or what to change';
+  note.value = verdicts[x.id]?.note || '';
+  note.oninput = () => { verdicts[x.id] = { ...verdicts[x.id], note: note.value }; saveVerdicts(); };
+  ['keep', 'maybe', 'drop'].forEach(k => {
+    const b = el('button', k + (verdicts[x.id]?.v === k ? ' on' : ''), k);
+    b.onclick = () => {
+      const off = verdicts[x.id]?.v === k;
+      verdicts[x.id] = { ...verdicts[x.id], v: off ? null : k };
+      $$('button', v).forEach(o => o.classList.toggle('on', !off && o === b));
+      saveVerdicts();
+    };
+    v.appendChild(b);
+  });
+  v.appendChild(note);
+  sec.appendChild(v);
+  return sec;
+}
+
+const q = new URLSearchParams(location.search);
+const only = q.get('only'), startView = q.get('view') === 'today' ? 'today' : 'exp';
+document.title = `Diff experiments · ${META.title}`;
+$('#rtitle').innerHTML = `Diff experiments<small>${esc(META.kicker)} · ${esc(META.title)}</small>`;
+const body = $('#rbody');
+if (!only) body.appendChild(el('p', 'lab-intro', 'Four ways to render a diff, each tried on this PR\'s own code. Flip <b>Today</b> and <b>Experiment</b> to compare, then leave a verdict; verdicts collect at the bottom to paste back.'));
+EXPS.forEach((x, i) => { if (!only || only === x.id) body.appendChild(section(x, i, startView)); });
+if (!only) {
+  const sec = el('section', 'rsec', '<div class="rhead"><span class="kicker">Verdicts</span><h2>To paste back</h2></div>');
+  sec.id = 'verdicts';
+  sec.appendChild(el('textarea'));
+  $('textarea', sec).readOnly = true;
+  body.appendChild(sec);
+}
+saveVerdicts();
+</script>
+</body>
+</html>

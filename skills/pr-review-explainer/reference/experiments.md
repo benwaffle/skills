@@ -17,22 +17,30 @@ These are Ben's ideas for visualizing a PR. He wants all of them tried, one at a
 | Run the code and show real output | `snippet` widget fed from a real run | liked |
 | Everything in the PR reachable | read mode's "rest of the diff" | pending |
 
+## In the lab (diff rendering, round 1)
+
+`scripts/lab.py` builds `pr<N>-lab.html`: each experiment on the PR's own code, with a Today / Experiment toggle and keep / maybe / drop buttons that collect into a box to paste back. Go only, through tree-sitter (`scripts/goast.py`). First tried on a PR that adds an XML config package (19 new types, a 19-case table test).
+
+| Idea | What the lab shows | Verdict |
+|---|---|---|
+| Change summaries on hunk headers | Chips per hunk: declarations added or removed, `+ NewServer param cache *Cache`, `api.NewServer(): + arg cache`, struct fields, imports, and a `body +a −d` count per hunk that ignores alignment-only lines. Hunks start folded, so the PR reads as an outline; a chip opens its hunk at that line. | pending |
+| Type models as components (with enums as value tables) | One card per root type, one row per field: a `pointer` badge (`optional` when the field is `omitempty`), `list of`, `map K →`, the XML element, methods. A field whose type is in the PR opens that card in place. `type X int` + `iota` consts show their values. | pending |
+| Table-driven tests as tables | `[]struct{…}{…}` and `map[string]struct{…}` literals as tables, with string values unquoted. A prefix a cell shares with 2+ other rows collapses to `…`, so each case shows what's different about it. Added and changed cases are marked, and the loop that runs them is shown underneath. | pending |
+| Happy path | Each `if …err != nil { … }` folds to one line: the guarded call, then "on error: …" in grey; click to reopen. The header shows lines before → after. | pending |
+
 ## Tried and dropped
 
 | Idea | Verdict |
 |---|---|
 | A list of all review findings at the top of read mode, each jumping to its note | "review comments at the top isn't helpful". Findings live where their code is, plus the verdict. |
-| Happy-path toggle (v1: folded Go `if err != nil { … }` blocks, matched by `^(\s*)(} else )?if .*err.* != nil {$` up to the `}` at the same indent) | Parked: Ben will revisit it when he works through the experiments. See "To try". |
+| Happy-path toggle (v1: folded Go `if err != nil { … }` blocks, matched by `^(\s*)(} else )?if .*err.* != nil {$` up to the `}` at the same indent) | Parked until Ben worked through the experiments; now back in the lab, using tree-sitter instead of the regex. |
 
 ## To try
 
 - **Peek, don't jump.** Hover a symbol in the diff to see its definition or its other changed call sites in a popover; click to pin it in a side panel. Needs a symbol index; `ast-grep` or tree-sitter over the PR head.
-- **AST change summaries.** Chips like "+ field `retry *RetryPolicy`" or "+ param" on a hunk header, built from difftastic's token data plus a tree-sitter pass.
 - **Call-flow strip as the table of contents.** Hover a node to peek that function's hunk; click to expand it under the strip. Or a sticky mini-map of the flow next to the diff, with a "you are here" marker that tracks scrolling.
-- **Type models as real components.** Struct declarations collapsed to one line per field, with nested types expandable in place and `?` / `[]` badges. Ben disliked ASCII trees.
-- **Switches and enums as tables.** Render a `switch` or `const` block as value → behavior.
-- **Table-driven tests as tables.** Render a Go `tests := []struct{…}{…}` table, or a pytest `parametrize` list, as a real table: one row per case, columns from the struct fields, the case name first, and changed or added cases marked. Useful both for "what does this cover" and for spotting the missing case (e.g. 19 validator cases where one rule has none).
-- **Happy path.** Hide error handling to see the main flow. The Go v1 is described under "Tried and dropped". Also try Python `try/except`, TS `catch`, Rust `?`/`match Err`, and compare it against pseudocode on the same function.
+- **Switches as tables.** Render a `switch` as value → behavior (enums are in the lab with the types).
+- **Lab experiments in other languages.** Table tests from pytest `parametrize`; happy path for Python `try/except`, TS `catch`, Rust `?`/`match Err`; compare happy path against pseudocode on the same function.
 - **Pseudocode summaries.** Ben is undecided.
 - **Tables with hierarchy.** Large rule tables group into collapsible rows with a one-line summary each (e.g. "SPT: 6 rules, all tested except negative Group").
 - **Interactive evaluators.** For rule data (e.g. "which rules fire for this request?"), embedded as an `html` widget in read mode.

@@ -63,11 +63,16 @@ These come from Ben's feedback on earlier explainers.
 - Anything that expands on click must collapse again from the same control.
 - Links open in a new tab; nothing in the page scrolls you away from where you are.
 
+## Lab
+
+`uv run scripts/lab.py <spec>` builds `reports/pr<N>-lab.html`, a page of diff-rendering experiments tried on the PR's own Go code: change summaries on hunk headers, types as components, table-driven tests as tables, and happy path. Each has a Today / Experiment toggle and verdict buttons. Use it when Ben is judging experiments, then record his verdicts in [reference/experiments.md](reference/experiments.md). The walkthrough doesn't use these renderings until he keeps one.
+
 ## Files
 
 - `scripts/build.py`: spec → HTML. Merge-base diff, whole-file pygments highlighting, difftastic structural rows, narration, timeline, GitHub permalinks, uncovered-hunk listing.
 - `scripts/tts.py`, `scripts/voices.yaml`, `scripts/lexicon.yaml`: the voices, the pronunciation lexicon, and the per-cue WAV cache in `~/.cache/pr-review-explainer/tts`.
 - `scripts/tts_mlx.py`: runs the mlx-audio model (Breeze) in its own uv environment, once per build for every uncached cue.
 - `scripts/verify.py`: contact sheets and JS/layout errors.
+- `scripts/lab.py`, `scripts/goast.py`, `assets/lab.html`: the experiments lab, and the tree-sitter Go analysis behind it.
 - `assets/template.html`: the player (tour + read).
 - `reference/spec.md`: the spec format. `reference/experiments.md`: visualization ideas, with which ones are built and what to try next.
