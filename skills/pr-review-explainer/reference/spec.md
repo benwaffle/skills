@@ -9,6 +9,8 @@ github: org/repo                 # for permalinks on every hunk header and ref
 pr: 42
 title: Retry failed webhook deliveries
 kicker: "PR #42 · WEB-7"         # "#N" anywhere in rendered text links to that PR in `github`
+                                 # (titles of every linked PR/issue and ticket are fetched at build time with `gh` and `twg`
+                                 # and shown on hover; a failed fetch only warns; `--no-fetch` skips it)
 jira:                            # ticket keys in these projects link to the ticket everywhere they're rendered
   site: https://example.atlassian.net
   projects: [WEB]

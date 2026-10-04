@@ -22,6 +22,7 @@ The diff is the spine. Everything else hangs off a specific hunk.
 ## Prerequisites
 
 - `uv`, `ffmpeg`, Google Chrome, and `difftastic` (`brew install difftastic`).
+- Optional: `gh` and `twg`, authenticated, so the build can fetch the titles shown when hovering PR and Jira links.
 - Kokoro model files `kokoro-v1.0.onnx` and `voices-v1.0.bin` in `~/Downloads/kokoro/`, or set `KOKORO_DIR`.
 - `uv run` and headless Chrome must run **outside the sandbox**. uv needs `~/.cache/uv` and PyPI on first run; Chrome needs its own profile. Inference itself is offline.
 

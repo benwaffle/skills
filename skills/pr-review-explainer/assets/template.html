@@ -191,6 +191,9 @@
   .rest summary { cursor: pointer; padding: 8px 14px; font-family: var(--mono); font-size: 12.5px; }
   .rest summary .cnt { color: var(--dim); margin-left: 8px; }
   body:not(.raw-diff) .rows.raw, body.raw-diff .rows.struct { display: none; }
+  #tip { position: fixed; z-index: 50; display: none; max-width: 380px; padding: 7px 10px; border-radius: 8px; pointer-events: none;
+    background: #232734; border: 1px solid #39405a; box-shadow: 0 6px 24px rgba(0,0,0,.45); color: var(--fg); font: 13px/1.4 -apple-system, sans-serif; }
+  #tip small { display: block; margin-bottom: 2px; color: var(--dim); font: 11px var(--mono); }
 </style>
 </head>
 <body class="mode-tour">
@@ -228,10 +231,16 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;',
 const splitPath = p => { const i = p.lastIndexOf('/'); return `<span class="path"><span class="dir">${esc(p.slice(0, i + 1))}</span><span class="base">${esc(p.slice(i + 1))}</span></span>`; };
 // Ticket keys from the spec's Jira projects and #N references to this repo's PRs become links.
 const JIRA = META.jira?.projects?.length ? new RegExp(`\\b(?:${META.jira.projects.join('|')})-\\d+\\b`, 'g') : null;
-const link = (href, text) => `<a href="${esc(href)}" target="_blank" rel="noopener">${text}</a>`;
+// Titles fetched at build time show in a hover card (see the #tip handlers at the end).
+const REFS = META.refs || {};
+const link = (href, text, key) => {
+  const r = REFS[key];
+  const tip = r ? ` data-tip="${esc(r.title)}" data-tip-meta="${esc(key + (r.state ? ' · ' + r.state : ''))}"` : '';
+  return `<a href="${esc(href)}" target="_blank" rel="noopener"${tip}>${text}</a>`;
+};
 const linkify = html => {
-  if (JIRA) html = html.replace(JIRA, k => link(`${META.jira.site}/browse/${k}`, k));
-  return html.replace(/(^|[^&\w])#(\d+)\b/g, (_, pre, n) => pre + link(`https://github.com/${META.github}/pull/${n}`, '#' + n));
+  if (JIRA) html = html.replace(JIRA, k => link(`${META.jira.site}/browse/${k}`, k, k));
+  return html.replace(/(^|[^&\w])#(\d+)\b/g, (_, pre, n) => pre + link(`https://github.com/${META.github}/pull/${n}`, '#' + n, '#' + n));
 };
 // Inline markup for note, widget, step and item text: `code`, **bold**, ~~strike~~, {a:chip}.
 const md = s => linkify(esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
@@ -782,6 +791,21 @@ function setMode(mode, sceneIdx) {
 $('#playTour').onclick = () => { setMode('tour'); if (audio.paused) toggle(); };
 const toggleBtn = (id, cls, invert) => { const b = $(id); b.onclick = () => { const on = document.body.classList.toggle(cls); b.classList.toggle('on', invert ? !on : on); }; };
 toggleBtn('#tStruct', 'raw-diff', true);
+
+const tip = el('div'); tip.id = 'tip'; document.body.appendChild(tip);
+function placeTip(e) {
+  const r = tip.getBoundingClientRect();
+  const x = Math.min(e.clientX + 12, innerWidth - r.width - 8), y = e.clientY + 16 + r.height > innerHeight - 8 ? e.clientY - r.height - 10 : e.clientY + 16;
+  tip.style.left = x + 'px'; tip.style.top = y + 'px';
+}
+document.addEventListener('mouseover', e => {
+  const a = e.target.closest('[data-tip]');
+  if (!a) { tip.style.display = 'none'; return; }
+  tip.innerHTML = `<small>${esc(a.dataset.tipMeta || '')}</small>${esc(a.dataset.tip)}`;
+  tip.style.display = 'block';
+  placeTip(e);
+});
+document.addEventListener('mousemove', e => { if (tip.style.display === 'block') placeTip(e); });
 
 document.fonts.ready.then(() => {
   buildTour();

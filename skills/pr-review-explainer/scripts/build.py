@@ -18,6 +18,7 @@ import re
 import subprocess
 import sys
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 
 import yaml
 from pygments.lexers import TextLexer, get_lexer_for_filename
@@ -30,6 +31,7 @@ CUE_GAP, SCENE_GAP, LEAD_IN = 0.45, 1.1, 0.8
 WORDS_PER_SEC = 2.7
 CONTEXT = 4
 ANCHOR = re.compile(r"\[\[([\w-]+)\]\]")
+GH_REF = re.compile(r"(?:^|[^&\w])#(\d+)\b")
 
 
 class SpecError(Exception):
@@ -220,6 +222,58 @@ class FileDiff:
                 "rows": [self.html_row(r) for r in struct_rows], "raw": [self.html_row(r) for r in rows]}
 
 
+# ---------------- link titles ----------------
+
+def spec_strings(node):
+    if isinstance(node, str):
+        yield node
+    elif isinstance(node, dict):
+        for v in node.values():
+            yield from spec_strings(v)
+    elif isinstance(node, list):
+        for v in node:
+            yield from spec_strings(v)
+
+
+def github_ref(repo, n):
+    r = subprocess.run(["gh", "api", f"repos/{repo}/issues/{n}"], capture_output=True, text=True, timeout=30, check=True)
+    d = json.loads(r.stdout)
+    if d.get("pull_request"):
+        state = "merged" if d["pull_request"].get("merged_at") else "draft" if d.get("draft") else d["state"]
+        return {"title": d["title"], "state": f"PR · {state}"}
+    return {"title": d["title"], "state": f"issue · {d['state']}"}
+
+
+def jira_ref(key):
+    r = subprocess.run(["twg", "jira", "workitem", "get", key, "--output", "json", "--output-summary", "none"],
+                       capture_output=True, text=True, timeout=60, check=True)
+    d = json.loads(r.stdout)["data"][0]
+    status = d.get("status")
+    status = status.get("name") if isinstance(status, dict) else status
+    return {"title": d.get("summary") or d["fields"]["summary"], "state": status or ""}
+
+
+def fetch_refs(spec):
+    """Titles for every Jira key and #N reference in the spec's text, shown when hovering their links."""
+    text = "\n".join([*spec_strings(spec.get("scenes", [])), spec.get("title", ""), spec.get("kicker", "")])
+    jobs = {}
+    projects = (spec.get("jira") or {}).get("projects") or []
+    if projects:
+        for key in set(re.findall(r"\b(?:%s)-\d+\b" % "|".join(map(re.escape, projects)), text)):
+            jobs[key] = lambda key=key: jira_ref(key)
+    for n in set(GH_REF.findall(text)):
+        jobs["#" + n] = lambda n=n: github_ref(spec["github"], n)
+    refs = {}
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        futures = {k: pool.submit(f) for k, f in jobs.items()}
+    for k, fut in sorted(futures.items()):
+        try:
+            refs[k] = fut.result()
+        except Exception as e:
+            print(f"  warning: no hover title for {k}: {e}", file=sys.stderr)
+    return refs
+
+
 # ---------------- markers ----------------
 
 def matches(row, marker):
@@ -245,8 +299,8 @@ def find(rows, marker, after=0, what="marker"):
 # ---------------- spec -> data ----------------
 
 class Builder:
-    def __init__(self, spec, spec_dir, silent):
-        self.spec, self.silent = spec, silent
+    def __init__(self, spec, spec_dir, silent, fetch=True):
+        self.spec, self.silent, self.fetch = spec, silent, fetch
         repo_path = os.path.expanduser(spec["repo"])
         if not os.path.isabs(repo_path):
             repo_path = os.path.join(spec_dir, repo_path)
@@ -387,6 +441,7 @@ class Builder:
             audio = self.encode(np.concatenate(parts))
         pr = spec.get("pr")
         meta = {"title": spec["title"], "kicker": spec.get("kicker", f"PR #{pr}"), "github": spec["github"], "jira": spec.get("jira"),
+                "refs": fetch_refs(spec) if self.fetch else {},
                 "statCommand": f"git diff --stat {self.repo.base_name}...{self.repo.branch}", "head": self.repo.head}
         return {"audio": audio, "duration": round(t, 3), "meta": meta, "scenes": scenes,
                 "stat": self.repo.numstat(), "rest": self.rest()}, times
@@ -454,11 +509,12 @@ def main():
     ap.add_argument("spec")
     ap.add_argument("--out")
     ap.add_argument("--no-audio", action="store_true", help="silent preview with estimated timings (no TTS)")
+    ap.add_argument("--no-fetch", action="store_true", help="skip fetching Jira/GitHub titles for link hover cards")
     args = ap.parse_args()
     with open(args.spec) as f:
         spec = yaml.safe_load(f)
     try:
-        data, times = Builder(spec, os.path.dirname(os.path.abspath(args.spec)), args.no_audio).build()
+        data, times = Builder(spec, os.path.dirname(os.path.abspath(args.spec)), args.no_audio, not args.no_fetch).build()
     except SpecError as e:
         sys.exit(f"spec error: {e}")
     out = args.out or os.path.join(os.environ.get("BB_THREAD_STORAGE", "."), "reports", f"pr{spec.get('pr', 'x')}-walkthrough.html")

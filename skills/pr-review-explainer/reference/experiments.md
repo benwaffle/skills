@@ -12,7 +12,7 @@ These are Ben's ideas for visualizing a PR. He wants all of them tried, one at a
 | Focus mode: fold what the narration doesn't touch | read mode folds runs of 8+ rows with no focus | pending; every fold must collapse again (fixed) |
 | Structural (AST-aware) diff: alignment-only changes dimmed, inserted tokens marked inside a line instead of a -/+ pair | difftastic in build.py; read-mode toggle | pending |
 | Never lose your place | permalinks open in a new tab | pending |
-| Links on ticket keys and `#N` PR refs | `jira:` in the spec | asked for |
+| Links on ticket keys and `#N` PR refs, with their title and status in a hover card | `jira:` in the spec; titles fetched at build time | asked for |
 | Rule data as a table with logic chips (e.g. routing rules from a config file) | `table` widget | liked in the static explainer |
 | Run the code and show real output | `snippet` widget fed from a real run | liked |
 | Everything in the PR reachable | read mode's "rest of the diff" | pending |
