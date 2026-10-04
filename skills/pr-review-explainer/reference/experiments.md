@@ -7,7 +7,7 @@ These are Ben's ideas for visualizing a PR. He wants all of them tried, one at a
 | Idea | Where | Verdict |
 |---|---|---|
 | Narrated, timeline-driven tour of the real diff (from an earlier one-off video explainer) | tour mode | the bar: "really really good" |
-| Doc and video combined in one artifact | tour + read over one scene list | pending |
+| Doc and video combined in one artifact | tour + read over one scene list | pending; Ben is undecided whether read mode should stay equivalent to the video |
 | Annotations pinned to the code they explain | tour side column; read steps light up their rows on hover | **liked**: "i like the highlighting code when hovering over explanations" |
 | Focus mode: fold what the narration doesn't touch | read mode folds runs of 8+ rows with no focus | pending; every fold must collapse again (fixed) |
 | Structural (AST-aware) diff: alignment-only changes dimmed, inserted tokens marked inside a line instead of a -/+ pair | difftastic in build.py; read-mode toggle | pending |
@@ -16,7 +16,10 @@ These are Ben's ideas for visualizing a PR. He wants all of them tried, one at a
 | Rule data as a table with logic chips (e.g. routing rules from a config file) | `table` widget | liked in the static explainer |
 | Run the code and show real output | `snippet` widget fed from a real run | liked |
 | Everything in the PR reachable | read mode's "rest of the diff" | pending |
-| Message ladder: who sends what to whom, old vs new identity in different chip colors, revealed step by step | `sequence` widget | asked for ("visualize who's sending what kind of messages to whom"); verdict pending |
+| Message ladder: who sends what to whom, old vs new identity in different chip colors, revealed step by step | `sequence` widget | asked for ("visualize who's sending what kind of messages to whom"); "works great in the video" |
+| Go types as code you can open (from the lab): a field's type opens its declaration under the line, with its methods; badges spell out pointer, optional, list of, map, and `iota` values | read mode, `views.py` | keep; always on, since each link is its own toggle |
+| Test cases as a table in place of their literals (from the lab), including part of a table when a hunk shows only some cases | read mode, `views.py` | keep; the bar above the table switches to the code |
+| Happy path (from the lab): error handling folded to one line of its real code, with work calls bright. Never folds a block with a change in it, so a fold can't hide one. A block a step points at wholly starts open, and a hovered step lights the fold that stands for its rows | read mode, `views.py` | keep; each fold is its own toggle |
 
 ## In the lab (diff rendering)
 
@@ -45,6 +48,8 @@ These are Ben's ideas for visualizing a PR. He wants all of them tried, one at a
 | Test cases as a table, inside the test | The test function as code, with the case literals replaced in place by the table; a bar switches between table and code. Columns are the field names as written. Code cells are syntax-highlighted. Boilerplate shared by 3+ cases shows as `…`, and every trimmed or cut cell has **more** to show it in full. | keep ("lgtm") |
 | Happy path | Each error-handling `if` (no else) joined onto one dimmed, highlighted line of its real code, like an editor fold. It counts when the condition checks `err != nil`, or when the body only returns an error, assigns to err-named variables (`errs = multierr.Append(…)`), panics or calls a `Fatal` log, optionally ending in `continue` or `break`. Calls that do real work stay bright (`if err := f(); …`, `errs = multierr.Append(errs, x.validate())`); error constructors, builtins and conversions dim with the rest. Opening a fold replaces the line with the block; clicking the block folds it again. | keep ("lgtm") |
 
+All three moved into read mode (see Built), with no global toggles: Ben said "we don't need toggles, mostly, esp for things that have no impact when collapsed or things with built-in toggles". The tour still shows plain code.
+
 ## Tried and dropped
 
 | Idea | Verdict |
@@ -57,9 +62,10 @@ These are Ben's ideas for visualizing a PR. He wants all of them tried, one at a
 ## To try
 
 - **Explaining code without replacing it.** Ben: "keep exploring ideas around explaining code". Two summaries lost to the code they described (chips and the outline), so explanations should sit beside the code or inside it, not in place of it.
-- **Peek, don't jump.** Hover a symbol in the diff to see its definition or its other changed call sites in a popover; click to pin it in a side panel. Needs a symbol index; `ast-grep` or tree-sitter over the PR head.
-- **Call-flow strip as the table of contents.** Hover a node to peek that function's hunk; click to expand it under the strip. Or a sticky mini-map of the flow next to the diff, with a "you are here" marker that tracks scrolling.
-- **Switches as tables.** Render a `switch` as value → behavior (enums are in the lab with the types).
+- **Peek, don't jump.** Hover a symbol in the diff to see its definition or its other changed call sites in a popover; click to pin it in a side panel. Needs a symbol index; `ast-grep` or tree-sitter over the PR head. Ben: "i like it".
+- **Call-flow strip as the table of contents.** Hover a node to peek that function's hunk; click to expand it under the strip. Or a sticky mini-map of the flow next to the diff, with a "you are here" marker that tracks scrolling. Ben likes "how it guides me thru the PR in a logical order" and is weighing horizontal against vertical timelines and tables of contents, so try both.
+- **Graphics beside the diff in read mode.** The tour's widgets (tables, flows, and the message ladder) "work great in the video"; Ben wonders how to bring them in alongside the code diff.
+- **Switches as tables.** Render a `switch` as value → behavior (enum values already show with the types).
 - **Lab experiments in other languages.** Table tests from pytest `parametrize`; happy path for Python `try/except`, TS `catch`, Rust `?`/`match Err`; compare happy path against pseudocode on the same function.
 - **Pseudocode summaries.** Ben is undecided.
 - **Tables with hierarchy.** Large rule tables group into collapsible rows with a one-line summary each (e.g. "SPT: 6 rules, all tested except negative Group").

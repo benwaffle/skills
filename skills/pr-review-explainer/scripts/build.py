@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["pyyaml", "pygments", "numpy", "soundfile", "kokoro-onnx"]
+# dependencies = ["pyyaml", "pygments", "numpy", "soundfile", "kokoro-onnx", "tree-sitter", "tree-sitter-go"]
 # ///
 """Build a PR walkthrough (narrated tour + read-mode document) from a scene spec.
 
@@ -11,7 +11,6 @@ The spec format is documented in ../reference/spec.md.
 
 import argparse
 import base64
-import html
 import json
 import os
 import re
@@ -21,9 +20,9 @@ import tempfile
 from concurrent.futures import ThreadPoolExecutor
 
 import yaml
-from pygments.lexers import TextLexer, get_lexer_for_filename
-from pygments.token import STANDARD_TYPES
-from pygments.util import ClassNotFound
+
+import views
+from highlight import char_links, char_ranges, render, tokens_by_line
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE = os.path.join(os.path.dirname(HERE), "assets", "template.html")
@@ -68,61 +67,13 @@ class Repo:
             self._files[path] = FileDiff(self, path)
         return self._files[path]
 
+    def ls(self, rev, directory):
+        """The files directly inside a directory at rev, as paths from the repo root."""
+        return git(self.path, "ls-tree", "--name-only", rev, directory + "/" if directory else ".").split()
+
     def url(self, path, line, old=False):
         rev = self.base if old else self.head
         return f"https://github.com/{self.github}/blob/{rev}/{path}" + (f"#L{line}" if line else "")
-
-
-# ---------------- highlighting ----------------
-
-def lexer_for(path):
-    try:
-        return get_lexer_for_filename(path, stripnl=False, ensurenl=False)
-    except ClassNotFound:
-        return TextLexer(stripnl=False, ensurenl=False)
-
-
-def css_class(ttype):
-    while ttype not in STANDARD_TYPES:
-        ttype = ttype.parent
-    short = STANDARD_TYPES[ttype]
-    return "t-" + short if short else ""
-
-
-# Highlighting whole files (not line by line) keeps multi-line comments and strings right.
-def tokens_by_line(text, path):
-    lines = [[]]
-    for ttype, value in lexer_for(path).get_tokens(text):
-        for i, part in enumerate(value.split("\n")):
-            if i:
-                lines.append([])
-            if part:
-                lines[-1].append((css_class(ttype), part))
-    return lines
-
-
-def char_ranges(text, byte_ranges):
-    b2c = []
-    for i, ch in enumerate(text):
-        b2c.extend([i] * len(ch.encode()))
-    b2c.append(len(text))
-    clamp = lambda b: b2c[min(b, len(b2c) - 1)]
-    return [(clamp(s), clamp(e)) for s, e in byte_ranges]
-
-
-def render(tokens, marks, mark_cls):
-    out, pos = [], 0
-    for cls, text in tokens:
-        cuts = sorted({0, len(text), *[max(0, min(len(text), b - pos)) for r in marks for b in r]})
-        for a, b in zip(cuts, cuts[1:]):
-            piece = html.escape(text[a:b], quote=False)
-            span = f'<span class="{cls}">{piece}</span>' if cls else piece
-            mid = pos + a
-            if any(s <= mid < e for s, e in marks):
-                span = f'<mark class="{mark_cls}">{span}</mark>'
-            out.append(span)
-        pos += len(text)
-    return "".join(out)
 
 
 # ---------------- diff model ----------------
@@ -205,14 +156,16 @@ class FileDiff:
                 out.append(dict(r))
         return out
 
-    def html_row(self, r):
+    def html_row(self, r, links=()):
+        """A row as HTML. `links` are (start byte, end byte, type id) spans that become type links."""
         old = r["k"] == "-"
         toks, line = (self.old_tok, r["o"]) if old else (self.new_tok, r["n"])
         tokens = toks[line - 1] if line and line - 1 < len(toks) else []
         if "".join(t for _, t in tokens) != r["text"]:
             tokens = [("", r["text"])]
         marks = char_ranges(r["text"], r.get("marks") or [])
-        return {"k": r["k"], "o": r["o"], "n": r["n"], "h": render(tokens, marks, "x-del" if old else "x-ins")}
+        xrefs = char_links(r["text"], links)
+        return {"k": r["k"], "o": r["o"], "n": r["n"], "h": render(tokens, marks, "x-del" if old else "x-ins", [(xrefs, "xref")])}
 
     def window(self, rows, struct_rows):
         nums = [r["n"] or r["o"] for r in struct_rows if r["n"] or r["o"]] or [0]
@@ -306,6 +259,7 @@ class Builder:
         if not os.path.isabs(repo_path):
             repo_path = os.path.join(spec_dir, repo_path)
         self.repo = Repo(repo_path, spec.get("base", "origin/main"), spec["github"])
+        self.views = views.Views(self.repo)
         self.voice = None
         if not silent:
             from tts import load_voice
@@ -342,6 +296,7 @@ class Builder:
         raw = [dict(r) for r in rows[a:b + 1]]
         struct = fd.structural(raw) if h.get("structural", True) else [dict(r) for r in raw]
         win = fd.window(raw, struct)
+        self.views.annotate(fd, win, struct)
         win["mode"] = h.get("mode", "diff")
         win["_struct"] = struct
         return win
@@ -457,8 +412,9 @@ class Builder:
         meta = {"title": spec["title"], "kicker": spec.get("kicker", f"PR #{pr}"), "github": spec["github"], "jira": spec.get("jira"),
                 "refs": fetch_refs(spec) if self.fetch else {},
                 "statCommand": f"git diff --stat {self.repo.base_name}...{self.repo.branch}", "head": self.repo.head}
+        rest = self.rest()
         return {"audio": audio, "duration": round(t, 3), "meta": meta, "scenes": scenes,
-                "stat": self.repo.numstat(), "rest": self.rest()}, times
+                "stat": self.repo.numstat(), "rest": rest, "types": self.views.type_blocks()}, times
 
     def rest(self):
         """Every hunk with a changed line no scene showed, so the read mode covers the whole diff."""
@@ -471,7 +427,10 @@ class Builder:
                 if missed:
                     uncovered += missed
                     raw = [dict(r) for r in rows]
-                    hunks.append(fd.window(raw, fd.structural(raw)))
+                    struct = fd.structural(raw)
+                    win = fd.window(raw, struct)
+                    self.views.annotate(fd, win, struct)
+                    hunks.append(win)
             if hunks:
                 out.append({"file": s["path"], "uncovered": uncovered, "hunks": hunks})
         return out

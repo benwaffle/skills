@@ -189,10 +189,11 @@ def types(files):
     names = set()
     for src in parsed.values():
         names |= {d["name"] for d in declarations(src).values() if d["kind"] == "type"}
-    out, methods = {}, {}
+    out, methods, values = {}, {}, {}
     for path, src in parsed.items():
-        enums = enum_values(src)
-        for key, d in declarations(src).items():
+        for t, vals in enum_values(src).items():
+            values.setdefault(t, []).extend({**v, "file": path} for v in vals)
+        for d in declarations(src).values():
             if d["kind"] == "func" and "." in d["name"]:
                 recv, name = d["name"].split(".", 1)
                 methods.setdefault(recv, []).append({"name": name, "file": path, "start": doc_start(d["node"]), "end": d["end"]})
@@ -203,13 +204,12 @@ def types(files):
                     "doc": doc_before(src, decl), "underlying": d["underlying"]}
             if "fields" in d:
                 info["fields"] = [{"name": f["name"], "type": f["type"], "line": f["line"], "embedded": f.get("embedded", False), "doc": f["doc"],
-                                   "xml": xml_name(f["tag"]), **type_ref(src, f["tnode"], names)} for f in d["fields"]]
-            if d["name"] in enums:
-                info["values"] = enums[d["name"]]
+                                   "xml": xml_name(f["tag"]), "omitempty": ",omitempty" in (f["tag"] or ""),
+                                   **type_ref(src, f["tnode"], names)} for f in d["fields"]]
             out[d["name"]] = info
-        for t, vals in enums.items():
-            if t in out and "values" not in out[t]:
-                out[t]["values"] = vals
+    for t, vals in values.items():
+        if t in out:
+            out[t]["values"] = vals
     for t, ms in methods.items():
         if t in out:
             out[t]["methods"] = ms

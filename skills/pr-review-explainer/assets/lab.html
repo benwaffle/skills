@@ -27,53 +27,7 @@
   .verdict input { flex: 1; max-width: 560px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; color: var(--fg); padding: 5px 10px; font: inherit; }
   .note-line { color: var(--dim); font-size: 13px; margin: 0 0 10px; }
   .gap-panel { margin-bottom: 12px; }
-  #read .rows.single .gut { grid-template-columns: 40px 18px; }
-  #read .rows.single .gut .ln:first-child { display: none; }
-
-  /* 1. types as code */
-  .tblock { padding: 2px 0 6px; }
-  .tloc { font-family: var(--mono); font-size: 11px; color: var(--dim); padding: 6px 14px 2px; }
-  #read .rows mark.xref { background: none; color: var(--blue); text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; }
-  #read .rows mark.xref.open { background: rgba(110,170,255,.18); border-radius: 3px; text-decoration-style: solid; }
-  #read .rows mark.xref.plain { color: inherit; text-decoration: none; cursor: default; }
-  .ann { font-family: -apple-system, sans-serif; font-size: 10.5px; margin-left: 14px; }
-  .badge { font-family: -apple-system, sans-serif; font-size: 10.5px; border-radius: 4px; padding: 0 5px; margin-right: 4px; }
-  .b-opt { background: #3d3220; color: #ffd08a; } .b-list { background: #22324d; color: #9cc4ff; } .b-map { background: #33284a; color: #d3b0ff; }
-  .b-ptr { background: #2b3040; color: var(--dim); } .b-val { background: #3d3220; color: #ffd08a; font-family: var(--mono); }
-  .tnest { margin: 2px 0 6px 58px; border-left: 2px solid #34405a; background: #13161d; border-radius: 0 8px 8px 0; }
-  .row.meth { color: var(--dim); font-family: -apple-system, sans-serif; font-size: 12px; }
-  .row.meth .cd button { background: none; border: 0; color: var(--blue); font: 12px var(--mono); cursor: pointer; padding: 0 4px; }
-  .row.gap .cd { color: #4d5466; }
-
-  /* 2. tests in the code */
-  #read .row.tbar { cursor: pointer; color: var(--blue); font-family: -apple-system, sans-serif; font-size: 12px; }
-  #read .row.tbar .sg { color: var(--blue); }
-  .inl { padding: 4px 16px 8px 0; }
-  .inl.off { display: none; }
-  .ttable { border-collapse: collapse; width: 100%; max-width: 1100px; font-size: 13px; background: #13161d; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-  .ttable th { text-align: left; color: var(--dim); font: 500 12px var(--mono); padding: 7px 12px; border-bottom: 1px solid var(--line); }
-  .ttable td { padding: 5px 12px; border-bottom: 1px solid #20242f; vertical-align: top; white-space: normal; font-family: -apple-system, sans-serif; }
-  .ttable tr:last-child td { border-bottom: 0; }
-  .ttable td.num { color: #4d5466; font-family: var(--mono); font-size: 11.5px; width: 24px; text-align: right; padding-right: 0; }
-  .ttable td.code { font-family: var(--mono); font-size: 12px; color: #c5cad6; white-space: pre-wrap; word-break: break-word; }
-  .ttable td.str { font-family: var(--mono); font-size: 12px; color: #a8dcb8; }
-  .ttable td.empty { color: #4d5466; font-family: var(--mono); font-size: 12px; }
-  .ttable .more { color: var(--blue); cursor: pointer; font-family: -apple-system, sans-serif; font-size: 11.5px; margin-left: 6px; white-space: nowrap; }
-  .ttable .pre { color: #4d5466; cursor: help; }
-  .ttable tr.added td.num { box-shadow: inset 3px 0 0 var(--green); } .ttable tr.changed td.num { box-shadow: inset 3px 0 0 var(--amber); }
-  .ttable tr:hover td { background: rgba(110,170,255,.05); }
-
-  /* 3. happy path */
-  #read .row.hp { cursor: pointer; }
-  .row.hp .sg { color: var(--violet); }
-  .row.hp .cd .dim { opacity: .5; }
-  .row.hp:hover .cd .dim { opacity: .9; }
-  .hpopen { cursor: pointer; }
-  .hpopen .gut { box-shadow: inset 2px 0 0 var(--violet); }
-  .hpopen:hover { background: rgba(178,140,255,.07); }
-  .hpopen:hover .gut { box-shadow: inset 4px 0 0 var(--violet); }
   .hhead .count { color: var(--dim); margin-left: auto; font-size: 12px; }
-
   #verdicts textarea { width: 100%; max-width: 900px; height: 110px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; color: var(--fg); font: 13px var(--mono); padding: 10px; }
 </style>
 </head>
@@ -89,8 +43,6 @@ const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [..
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const splitPath = p => { const i = p.lastIndexOf('/'); return `<span class="path"><span class="dir">${esc(p.slice(0, i + 1))}</span><span class="base">${esc(p.slice(i + 1))}</span></span>`; };
-const base = p => p.slice(p.lastIndexOf('/') + 1);
-const indentOf = html => (el('span', '', html).textContent.match(/^\s*/) || [''])[0];
 const KIND = { '+': 'add', '-': 'del', ' ': 'ctx', '~': 'cos', '±': 'mod' };
 const SIGN = { '+': '+', '-': '−', ' ': '', '~': '≈', '±': '±' };
 function rowEl(r, isNew) {
@@ -100,274 +52,23 @@ function rowEl(r, isNew) {
   row.append(gut, el('span', 'cd', r.h || ' '));
   return row;
 }
-function markRow(sign, html, cls) {
-  const row = el('div', 'row ctx ' + cls);
-  const gut = el('span', 'gut');
-  gut.append(el('span', 'ln', ''), el('span', 'ln', ''), el('span', 'sg', sign));
-  row.append(gut, el('span', 'cd', html));
-  return row;
-}
 function head(w, extra = '') {
   return el('div', 'hhead', `<a href="${esc(w.url)}" target="_blank" rel="noopener">${splitPath(w.file)}</a>${w.isNew ? '<span class="newf">new file</span>' : ''}${extra}<span class="rng">${w.range}</span>`);
 }
-// With no old line numbers in view, the old-number column is dropped instead of left blank.
-const rowsList = rows => el('div', 'rows' + (rows.every(r => r.o == null) ? ' single' : ''));
-const gutterWidth = list => list.classList.contains('single') ? 58 : 98;
-function rowsBox(rows, isNew) {
-  const body = el('div', 'hbody'), list = rowsList(rows);
-  rows.forEach(r => list.appendChild(rowEl(r, isNew)));
-  body.appendChild(list);
-  return body;
-}
 function hunk(w) {
-  const box = el('div', 'hunk');
-  box.append(head(w), rowsBox(w.rows, w.isNew));
+  const box = el('div', 'hunk'), body = el('div', 'hbody');
+  const list = el('div', 'rows' + (w.rows.every(r => r.o == null) ? ' single' : ''));
+  w.rows.forEach(r => list.appendChild(rowEl(r, w.isNew)));
+  body.appendChild(list);
+  box.append(head(w), body);
   return box;
 }
 const panel = children => { const p = el('div', 'rcode gap-panel'); children.forEach(c => c && p.appendChild(c)); return p; };
 
-// ================= 1. types: the real code, with types that open in place =================
-const T = DATA.types.types;
-function badges(f) {
-  return f.mods.map(m => {
-    if (m === 'pointer') return f.xml?.omitempty ? '<span class="badge b-opt">optional</span>' : '<span class="badge b-ptr">pointer</span>';
-    if (m === 'list') return '<span class="badge b-list">list of</span>';
-    return `<span class="badge b-map">${esc(m.replace(/^map\[(.*)\]$/, 'map $1 →'))}</span>`;
-  }).join('');
-}
-function typeBlock(name, seen) {
-  const t = T[name], inner = new Set([...seen, name]);
-  const box = el('div', 'tblock');
-  box.appendChild(el('div', 'tloc', `${esc(t.file)}:${t.line}`));
-  const list = rowsList(t.rows.filter(r => !r.gap));
-  const fields = {}, values = {};
-  (t.fields || []).forEach(f => (fields[f.line] ||= []).push(f));
-  (t.values || []).forEach(v => (values[v.line] ||= []).push(v));
-  t.rows.forEach(r => {
-    if (r.gap) { list.appendChild(markRow('⋯', '', 'gap')); return; }
-    const row = rowEl(r, t.isNew);
-    const cd = $('.cd', row);
-    const ann = (fields[r.n] || []).map(badges).join('') + (values[r.n] || []).filter(v => v.derived).map(v => `<span class="badge b-val">= ${esc(v.value)}</span>`).join('');
-    if (ann) cd.insertAdjacentHTML('beforeend', `<span class="ann">${ann}</span>`);
-    $$('mark.xref', row).forEach(m => {
-      const ref = m.textContent.split('.').pop();
-      if (!T[ref] || inner.has(ref)) { m.classList.add('plain'); return; }
-      m.onclick = () => {
-        const open = row.nextElementSibling?.dataset.nestOf === ref ? row.nextElementSibling : null;
-        if (open) { open.remove(); m.classList.remove('open'); return; }
-        const nest = el('div', 'tnest');
-        nest.dataset.nestOf = ref;
-        nest.appendChild(typeBlock(ref, inner));
-        row.after(nest);
-        m.classList.add('open');
-      };
-    });
-    list.appendChild(row);
-  });
-  if (t.methods?.length) {
-    const row = markRow('ƒ', 'methods', 'meth');
-    const cd = $('.cd', row);
-    t.methods.forEach(m => {
-      const b = el('button', '', `▸ ${esc(m.name)}()`);
-      b.onclick = () => {
-        const open = $(`.tnest[data-method="${m.name}"]`, list);
-        if (open) { open.remove(); b.textContent = `▸ ${m.name}()`; return; }
-        const nest = el('div', 'tnest');
-        nest.dataset.method = m.name;
-        const inner = rowsList(m.rows);
-        m.rows.forEach(r => inner.appendChild(rowEl(r, t.isNew)));
-        nest.appendChild(inner);
-        const after = $$('.tnest[data-method]', list).at(-1) || row;
-        after.after(nest);
-        b.textContent = `▾ ${m.name}()`;
-      };
-      cd.appendChild(b);
-    });
-    list.appendChild(row);
-  }
-  const body = el('div', 'hbody');
-  body.appendChild(list);
-  box.appendChild(body);
-  return box;
-}
-function typesView() {
-  const root = el('div');
-  const { featured, roots } = DATA.types;
-  root.appendChild(el('p', 'note-line', `${featured.length} types are new or changed in this PR. Starting from the ${roots.length} that contain the rest: click an underlined type to open its code in place, or a method to read it.`));
-  roots.forEach(n => root.appendChild(panel([typeBlock(n, new Set())])));
-  return root;
-}
-function typesToday() { return panel(DATA.types.today.map(hunk)); }
-
-// ================= 2. table-driven tests: the table where the cases are =================
-const CELL_MAX = 72, PREFIX_MIN = 24, PREFIX_ROWS = 3, REST_MIN = 16;
-const flatOf = c => c.toks.map(t => t[1]).join('');
-// Characters a to b of a code cell's one-line form, highlighted.
-function tokSlice(toks, a, b = Infinity) {
-  let pos = 0, out = '';
-  toks.forEach(([cls, text]) => {
-    const s = Math.max(a, pos) - pos, e = Math.min(b, pos + text.length) - pos;
-    if (s < e) out += cls ? `<span class="${cls}">${esc(text.slice(s, e))}</span>` : esc(text.slice(s, e));
-    pos += text.length;
-  });
-  return out;
-}
-// The longest start a cell shares with at least two other rows in its column, cut back to a token boundary: in a test
-// table that part is boilerplate, and the rest is what makes the case different.
-function sharedPrefixes(cells) {
-  const flat = cells.map(c => c && c.str == null ? flatOf(c) : null);
-  return flat.map((a, i) => {
-    if (a == null) return 0;
-    const shared = flat.map((b, j) => {
-      if (j === i || b == null) return 0;
-      let k = 0;
-      while (k < a.length && k < b.length && a[k] === b[k]) k++;
-      return k;
-    }).sort((x, y) => y - x);
-    const best = shared[PREFIX_ROWS - 2] || 0;
-    const cut = Math.max(...['(', '`', ' ', '>', ','].map(ch => a.lastIndexOf(ch, best - 1) + 1));
-    return cut >= PREFIX_MIN && a.length - cut >= REST_MIN ? cut : 0;
-  });
-}
-function testCell(c, col, prefix) {
-  if (!c) return el('td', 'empty', '—');
-  if (c.str != null && !c.multiline) {
-    if (c.str === '') return el('td', 'empty', '""');
-    return el('td', col === 'name' || col === 'desc' ? '' : 'str', esc(c.str));
-  }
-  const td = el('td', 'code');
-  const flat = flatOf(c);
-  const pre = prefix ? `<span class="pre" title="${esc(flat.slice(0, prefix))}">…</span>` : '';
-  const fits = flat.length - prefix <= CELL_MAX;
-  if (fits && !prefix) { td.innerHTML = tokSlice(c.toks, 0); return td; }
-  const short = pre + (fits ? tokSlice(c.toks, prefix) : tokSlice(c.toks, prefix, prefix + CELL_MAX - 1) + '…');
-  const text = el('span', '', short);
-  const more = el('span', 'more', 'more');
-  more.onclick = () => {
-    const open = more.textContent === 'less';
-    text.innerHTML = open ? short : c.html ?? tokSlice(c.toks, 0);
-    more.textContent = open ? 'more' : 'less';
-  };
-  td.append(text, more);
-  return td;
-}
-function caseTable(t) {
-  const table = el('table', 'ttable');
-  const tr = el('tr');
-  tr.appendChild(el('th', '', ''));
-  t.columns.forEach(c => tr.appendChild(el('th', '', esc(c))));
-  table.appendChild(el('thead')).appendChild(tr);
-  const tb = el('tbody');
-  const prefixes = Object.fromEntries(t.columns.map(c => [c, sharedPrefixes(t.rows.map(r => r.cells[c]))]));
-  t.rows.forEach((r, i) => {
-    const row = el('tr', r.mark || '');
-    row.appendChild(el('td', 'num', i + 1));
-    t.columns.forEach(c => row.appendChild(testCell(r.cells[c], c, prefixes[c][i])));
-    tb.appendChild(row);
-  });
-  table.appendChild(tb);
-  return table;
-}
-function testsView() {
-  const root = el('div');
-  DATA.tests.forEach(t => {
-    const w = t.window, [a, b] = t.cases;
-    const box = el('div', 'hunk');
-    const added = t.rows.filter(r => r.mark === 'added').length, changed = t.rows.filter(r => r.mark === 'changed').length;
-    const marks = t.isNew ? 'new test' : [added && `${added} added`, changed && `${changed} changed`].filter(Boolean).join(', ') || 'cases unchanged';
-    box.appendChild(head(w, `<span class="count">${esc(t.func)} · ${t.rows.length} cases · ${marks}</span>`));
-    $('.rng', box).remove();
-    const list = rowsList(w.rows);
-    const caseRows = [];
-    let prev = null, bar = null, inl = null;
-    w.rows.forEach(r => {
-      const inCases = r.n != null ? r.n >= a && r.n <= b : prev != null && prev >= a && prev < b;
-      if (r.n != null) prev = r.n;
-      if (inCases && !bar) {
-        const n = t.rows.length;
-        bar = markRow('⊞', `${n} cases as a table · show the code`, 'tbar');
-        inl = el('div', 'inl');
-        inl.style.paddingLeft = `calc(${gutterWidth(list)}px + ${indentOf(r.h).replace(/\t/g, '    ').length}ch)`;
-        inl.appendChild(caseTable(t));
-        bar.onclick = () => {
-          const code = inl.classList.toggle('off');
-          caseRows.forEach(x => x.style.display = code ? '' : 'none');
-          $('.cd', bar).textContent = code ? `${n} cases as code · show as a table` : `${n} cases as a table · show the code`;
-        };
-        list.append(bar, inl);
-      }
-      const row = rowEl(r, w.isNew);
-      if (inCases) { row.style.display = 'none'; caseRows.push(row); }
-      list.appendChild(row);
-    });
-    const body = el('div', 'hbody');
-    body.appendChild(list);
-    box.appendChild(body);
-    root.appendChild(panel([box]));
-  });
-  return root;
-}
-function testsToday() { return panel(DATA.tests.map(t => hunk(t.window))); }
-
-// ================= 3. happy path: error handling folded to one line of real code =================
-function happyView() {
-  const root = el('div');
-  DATA.happy.forEach(ex => {
-    const w = ex.window;
-    const box = el('div', 'hunk');
-    const list = rowsList(w.rows);
-    let fold = null, group = null, hidden = 0;
-    w.rows.forEach(r => {
-      const starts = r.n != null ? ex.folds.find(f => f.start === r.n) : null;
-      if (starts) {
-        fold = starts;
-        const row = el('div', 'row ctx hp'), full = el('div', 'hpopen');
-        const gut = el('span', 'gut');
-        gut.append(el('span', 'ln', ''), el('span', 'ln', r.n), el('span', 'sg', '⤷'));
-        row.append(gut, el('span', 'cd', starts.html));
-        row.title = `${starts.end - starts.start + 1} lines of error handling; click to open`;
-        full.title = 'click to fold the error handling again';
-        full.style.display = 'none';
-        row.onclick = () => { row.style.display = 'none'; full.style.display = ''; };
-        full.onclick = () => { full.style.display = 'none'; row.style.display = ''; };
-        list.append(row, full);
-        group = full;
-      }
-      const row = rowEl(r, w.isNew);
-      if (fold && (r.n == null || r.n <= fold.end)) {
-        group.appendChild(row);
-        hidden++;
-      } else {
-        list.appendChild(row);
-      }
-      if (fold && r.n === fold.end) fold = null;
-    });
-    const shown = w.rows.length - hidden + ex.folds.length;
-    box.appendChild(head(w, `<span class="count">${esc(ex.func)} · ${w.rows.length} → ${shown} lines</span>`));
-    $('.rng', box).remove();
-    const body = el('div', 'hbody');
-    body.appendChild(list);
-    box.appendChild(body);
-    root.appendChild(panel([box]));
-  });
-  return root;
-}
-function happyToday() {
-  const root = el('div');
-  DATA.happy.forEach(ex => root.appendChild(panel([hunk(ex.window)])));
-  return root;
-}
-
 // ================= page =================
-const EXPS = [
-  { id: 'types', title: 'Types as code you can open', exp: typesView, today: typesToday, n: () => DATA.types.featured.length,
-    why: 'The real declarations, starting from the types that contain the rest. An underlined type opens its own declaration in place, nested under the line that uses it; a method opens its code the same way. At the end of a field\'s line, <b>pointer</b>, <b>optional</b> (a pointer marked <code>omitempty</code>), <b>list of</b> and <b>map</b> spell out the type, and an <code>iota</code> constant shows its value. <b>Look for:</b> does following the model in place beat jumping between declarations?' },
-  { id: 'tests', title: 'Test cases as a table, inside the test', exp: testsView, today: testsToday, n: () => DATA.tests.length,
-    why: 'The test function as code, with its case literals replaced by a table where they sit: one row per case, one column per field, boilerplate shared by several cases shown as <b>…</b> (hover for it), long values cut short; <b>more</b> shows a trimmed or cut value in full. The bar above the table switches between the table and the code. <b>Look for:</b> can you see what is covered, and what isn\'t, without leaving the code?' },
-  { id: 'happy', title: 'Happy path', exp: happyView, today: happyToday, n: () => DATA.happy.length,
-    why: 'Each error-handling <code>if</code> is joined onto one dimmed line of its real code, like an editor\'s fold, so the main flow reads straight through. An <code>if</code> counts when it checks <code>err != nil</code>, or when its body only returns an error, records one in an <code>err</code> variable (then maybe <code>continue</code>s), or panics. Calls that do real work, like the one an <code>err</code> comes from, stay bright. Click a folded line to open the block, and click the open block to fold it again. <b>Look for:</b> does the main flow read better, and is the one-line form enough to trust the error handling?' },
-];
-const KEY = `lab-verdicts:${META.github}#${META.pr}:round4`;
+// Each experiment: { id, title, why, exp: () => element, today: () => element, n: () => how many places it applies }.
+const EXPS = [];
+const KEY = `lab-verdicts:${META.github}#${META.pr}:round5`;
 // Sandboxed iframes (bb's inline viewer) throw on any localStorage access; verdicts then last only for the visit.
 const store = (() => { try { localStorage.getItem(KEY); return localStorage; } catch { return null; } })();
 const verdicts = JSON.parse(store?.getItem(KEY) || '{}');
@@ -426,9 +127,11 @@ const only = q.get('only'), startView = q.get('view') === 'today' ? 'today' : 'e
 document.title = `Diff experiments · ${META.title}`;
 $('#rtitle').innerHTML = `Diff experiments<small>${esc(META.kicker)} · ${esc(META.title)}</small>`;
 const body = $('#rbody');
-if (!only) body.appendChild(el('p', 'lab-intro', 'Round 4: the three renderings you kept, with your latest notes applied, tried on this PR\'s own code. Flip <b>Today</b> and <b>Experiment</b> to compare, then leave a verdict; verdicts collect at the bottom to paste back.'));
+if (!only) body.appendChild(el('p', 'lab-intro', EXPS.length
+  ? 'Flip <b>Today</b> and <b>Experiment</b> to compare, then leave a verdict; verdicts collect at the bottom to paste back.'
+  : 'No experiments in this round. Kept ones live in the walkthrough\'s read mode.'));
 EXPS.forEach((x, i) => { if (!only || only === x.id) body.appendChild(section(x, i, startView)); });
-if (!only) {
+if (!only && EXPS.length) {
   const sec = el('section', 'rsec', '<div class="rhead"><span class="kicker">Verdicts</span><h2>To paste back</h2></div>');
   sec.id = 'verdicts';
   sec.appendChild(el('textarea'));

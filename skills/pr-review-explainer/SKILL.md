@@ -17,6 +17,13 @@ One HTML file, two modes over the same scene data:
 - **Tour**: a 1280×720 player. Narration (Breeze TTS 2 by default) drives a timeline that scrolls the real diff, focuses line ranges, morphs old code into new, and slides review notes and small widgets into a side column. Scrubbing, speed, chapters and `?t=` deep links are exact, because every animation is a paused Web Animation set from the audio clock.
 - **Read**: the same scenes as a document. The code is on the left. On the right, one block per narrated step; hovering a block lights up its rows. Rows no step points at are folded, and every fold can be collapsed again. A toggle switches between the structural diff (default) and the raw line diff. "▶ from here" jumps into the tour. A final section lists every hunk the tour skipped, so nothing in the PR is hidden.
 
+  In Go files the structural diff gets three renderings from tree-sitter, with nothing to write in the spec:
+  - a field's type opens its declaration under the line, with badges that spell the type out;
+  - test-case literals show as a table in their place;
+  - error handling folds to one line of its real code.
+
+  Each opens and closes in place. The raw diff and the tour show plain code.
+
 The diff is the spine. Everything else hangs off a specific hunk.
 
 ## Prerequisites
@@ -66,12 +73,7 @@ These come from Ben's feedback on earlier explainers.
 
 ## Lab
 
-`uv run scripts/lab.py <spec>` builds `reports/pr<N>-lab.html`, a page of diff-rendering experiments tried on the PR's own code:
-- types as code you can open in place;
-- test cases as a table inside the test;
-- happy path, with error handling folded to one line.
-
-Each experiment has a Today / Experiment toggle and verdict buttons. Use the lab when Ben is judging experiments, and record his verdicts in [reference/experiments.md](reference/experiments.md). The walkthrough doesn't use these renderings yet.
+`uv run scripts/lab.py <spec>` builds `reports/pr<N>-lab.html`, a page of diff-rendering experiments tried on the PR's own code. Each experiment has a Today / Experiment toggle and verdict buttons. Use the lab when Ben is judging experiments, and record his verdicts in [reference/experiments.md](reference/experiments.md). A kept experiment moves into read mode and leaves the lab.
 
 ## Files
 
@@ -79,6 +81,8 @@ Each experiment has a Today / Experiment toggle and verdict buttons. Use the lab
 - `scripts/tts.py`, `scripts/voices.yaml`, `scripts/lexicon.yaml`: the voices, the pronunciation lexicon, and the per-cue WAV cache in `~/.cache/pr-review-explainer/tts`.
 - `scripts/tts_mlx.py`: runs the mlx-audio model (Breeze) in its own uv environment, once per build for every uncached cue.
 - `scripts/verify.py`: contact sheets and JS/layout errors.
-- `scripts/lab.py`, `scripts/goast.py`, `assets/lab.html`: the experiments lab, and the tree-sitter Go analysis behind it.
+- `scripts/highlight.py`: pygments tokens per line, rendered to HTML with marked ranges.
+- `scripts/views.py`, `scripts/goast.py`: read mode's Go renderings, and the tree-sitter analysis behind them.
+- `scripts/lab.py`, `assets/lab.html`: the experiments lab.
 - `assets/template.html`: the player (tour + read).
 - `reference/spec.md`: the spec format. `reference/experiments.md`: visualization ideas, with which ones are built and what to try next.

@@ -197,7 +197,7 @@
   .rsec { padding: 30px 0 8px; border-bottom: 1px solid var(--line); scroll-margin-top: 50px; }
   #read .row.rfold { cursor: pointer; color: var(--dim); font-family: -apple-system, sans-serif; font-size: 12px; }
   #read .row.rfold:hover { color: var(--blue); }
-  #read .row.rfolded { display: none; }
+  #read .rfolded { display: none; }
   #layout-errors { position: absolute; left: 0; right: 0; top: 0; z-index: 9; background: #7a1f1f; color: #fff; font: 12px var(--mono); padding: 4px 10px; }
   .rsec .rhead { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
   .rsec .rhead .kicker { margin: 0; }
@@ -219,6 +219,50 @@
   .rest summary { cursor: pointer; padding: 8px 14px; font-family: var(--mono); font-size: 12.5px; }
   .rest summary .cnt { color: var(--dim); margin-left: 8px; }
   body:not(.raw-diff) .rows.raw, body.raw-diff .rows.struct { display: none; }
+
+  /* read mode: Go-aware renderings placed by views.py; the tour shows the same rows without them */
+  mark.xref { background: none; color: inherit; }
+  #read .rows.single .gut { grid-template-columns: 40px 18px; }
+  #read .rows.single .gut .ln:first-child { display: none; }
+  #read .rows mark.xref { color: var(--blue); text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; }
+  #read .rows mark.xref.open { background: rgba(110,170,255,.18); border-radius: 3px; text-decoration-style: solid; }
+  #read .rows mark.xref.plain { color: inherit; text-decoration: none; cursor: default; }
+  .ann { font-family: -apple-system, sans-serif; font-size: 10.5px; margin-left: 14px; }
+  .badge { font-family: -apple-system, sans-serif; font-size: 10.5px; border-radius: 4px; padding: 0 5px; margin-right: 4px; }
+  .b-opt { background: #3d3220; color: #ffd08a; } .b-list { background: #22324d; color: #9cc4ff; } .b-map { background: #33284a; color: #d3b0ff; }
+  .b-ptr { background: #2b3040; color: var(--dim); } .b-val { background: #3d3220; color: #ffd08a; font-family: var(--mono); }
+  .tblock { padding: 2px 0 6px; }
+  .tloc { font-family: var(--mono); font-size: 11px; padding: 6px 14px 2px; }
+  .tloc a { color: var(--dim); }
+  .tnest { margin: 2px 0 6px; border-left: 2px solid #34405a; background: #13161d; border-radius: 0 8px 8px 0; }
+  .row.meth { color: var(--dim); font-family: -apple-system, sans-serif; font-size: 12px; }
+  .row.meth .cd button { background: none; border: 0; color: var(--blue); font: 12px var(--mono); cursor: pointer; padding: 0 4px; }
+  .row.gap .cd { color: #4d5466; font: 11px var(--mono); }
+  #read .row.tbar { cursor: pointer; color: var(--blue); font-family: -apple-system, sans-serif; font-size: 12px; }
+  #read .row.tbar .sg { color: var(--blue); }
+  .inl { padding: 4px 16px 8px 0; }
+  .inl.off { display: none; }
+  .ttable { border-collapse: collapse; width: 100%; max-width: 1100px; font-size: 13px; background: #13161d; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .ttable th { text-align: left; color: var(--dim); font: 500 12px var(--mono); padding: 7px 12px; border-bottom: 1px solid var(--line); }
+  .ttable td { padding: 5px 12px; border-bottom: 1px solid #20242f; vertical-align: top; white-space: normal; font-family: -apple-system, sans-serif; }
+  .ttable tr:last-child td { border-bottom: 0; }
+  .ttable td.num { color: #4d5466; font-family: var(--mono); font-size: 11.5px; width: 24px; text-align: right; padding-right: 0; }
+  .ttable td.code { font-family: var(--mono); font-size: 12px; color: #c5cad6; white-space: pre-wrap; word-break: break-word; }
+  .ttable td.str { font-family: var(--mono); font-size: 12px; color: #a8dcb8; }
+  .ttable td.empty { color: #4d5466; font-family: var(--mono); font-size: 12px; }
+  .ttable .more { color: var(--blue); cursor: pointer; font-family: -apple-system, sans-serif; font-size: 11.5px; margin-left: 6px; white-space: nowrap; }
+  .ttable .pre { color: #4d5466; cursor: help; }
+  .ttable tr.added td.num { box-shadow: inset 3px 0 0 var(--green); } .ttable tr.changed td.num { box-shadow: inset 3px 0 0 var(--amber); }
+  .ttable tr:hover td { background: rgba(110,170,255,.05); }
+  .ttable tr.hot td { background: rgba(110,170,255,.12); }
+  #read .row.hp { cursor: pointer; }
+  .row.hp .sg { color: var(--violet); }
+  .row.hp .cd .dim { opacity: .5; }
+  .row.hp:hover .cd .dim { opacity: .9; }
+  .hpopen { cursor: pointer; }
+  .hpopen .gut { box-shadow: inset 2px 0 0 var(--violet); }
+  .hpopen:hover { background: rgba(195,140,255,.07); }
+  .hpopen:hover .gut { box-shadow: inset 4px 0 0 var(--violet); }
   #tip { position: fixed; z-index: 50; display: none; max-width: 380px; padding: 7px 10px; border-radius: 8px; pointer-events: none;
     background: #232734; border: 1px solid #39405a; box-shadow: 0 6px 24px rgba(0,0,0,.45); color: var(--fg); font: 13px/1.4 -apple-system, sans-serif; }
   #tip small { display: block; margin-bottom: 2px; color: var(--dim); font: 11px var(--mono); }
@@ -722,14 +766,17 @@ function fit() { $('#stage').style.transform = `translate(-50%, -50%) scale(${Ma
 addEventListener('resize', fit); fit();
 
 // ================= read mode: the same scenes as a scrolling document =================
-// Rows no narration step points at are folded in runs, keeping two rows of context on each side.
-function foldPlan(rows, focused) {
+const span = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
+// Rows no narration step points at are folded in runs, keeping two rows of context on each side. Rows in `keep` (test
+// cases shown as a table) never fold, and a hunk no step points at gets no folds.
+function foldPlan(rows, focused, keep) {
   const plan = rows.map(() => null);
   if (!focused.size) return plan;
+  const shown = i => focused.has(i) || keep.has(i);
   for (let i = 0; i < rows.length;) {
-    if (focused.has(i)) { i++; continue; }
+    if (shown(i)) { i++; continue; }
     let j = i;
-    while (j + 1 < rows.length && !focused.has(j + 1)) j++;
+    while (j + 1 < rows.length && !shown(j + 1)) j++;
     const a = i === 0 ? 0 : i + 2, b = j === rows.length - 1 ? j : j - 2;
     if (b - a + 1 >= 8) for (let k = a; k <= b; k++) plan[k] = { start: a, n: b - a + 1 };
     i = j + 1;
@@ -737,42 +784,240 @@ function foldPlan(rows, focused) {
   return plan;
 }
 let foldSeq = 0;
+function narrationFold(g, n) {
+  const fold = el('div', 'row rfold');
+  const label = open => `<span class="gut"><span class="ln"></span><span class="ln"></span><span class="sg">${open ? '▾' : '▸'}</span></span>` +
+    `<span class="cd">${open ? `collapse these ${n} lines` : `${n} lines not covered by the narration`}</span>`;
+  fold.innerHTML = label(false);
+  fold.onclick = () => {
+    const open = fold.classList.toggle('open');
+    fold.innerHTML = label(open);
+    $$(`#read [data-fold="${g}"]`).forEach(x => x.classList.toggle('rfolded', !open));
+  };
+  return fold;
+}
+
+// ---------- Go-aware renderings, placed by views.py ----------
+const T = DATA.types || {};
+const gutterWidth = list => list.classList.contains('single') ? 58 : 98;
+function markRow(sign, html, cls) {
+  const row = el('div', 'row ctx ' + cls);
+  const gut = el('span', 'gut');
+  gut.append(el('span', 'ln', ''), el('span', 'ln', ''), el('span', 'sg', sign));
+  row.append(gut, el('span', 'cd', html));
+  return row;
+}
+// A code row with its badges, and type names that open the type's declaration under the row. Types in `seen` are
+// already open around the row, so they stay plain and a cycle can't nest forever.
+function richRow(r, isNew, seen) {
+  const row = rowEl(r, isNew);
+  if (r.ann?.length) $('.cd', row).insertAdjacentHTML('beforeend', `<span class="ann">${r.ann.map(([k, label]) => `<span class="badge b-${k}">${esc(label)}</span>`).join('')}</span>`);
+  $$('mark.xref', row).forEach(m => {
+    if (!T[m.dataset.ref] || seen.has(m.dataset.ref)) m.classList.add('plain');
+    else m.onclick = () => toggleType(row, m.dataset.ref, seen);
+  });
+  return row;
+}
+function toggleType(row, ref, seen) {
+  row.nests ||= new Map();
+  const marks = $$('mark.xref', row).filter(m => m.dataset.ref === ref);
+  if (row.nests.has(ref)) {
+    row.nests.get(ref).remove();
+    row.nests.delete(ref);
+    marks.forEach(m => m.classList.remove('open'));
+    return;
+  }
+  const nest = el('div', 'tnest');
+  nest.style.marginLeft = gutterWidth(row.closest('.rows')) + 'px';
+  if (row.dataset.fold) nest.dataset.fold = row.dataset.fold;
+  nest.appendChild(typeBlock(ref, new Set([...seen, ref])));
+  ([...row.nests.values()].at(-1) || row).after(nest);
+  row.nests.set(ref, nest);
+  marks.forEach(m => m.classList.add('open'));
+}
+function typeBlock(id, seen) {
+  const t = T[id], box = el('div', 'tblock');
+  box.appendChild(el('div', 'tloc', `<a href="${esc(t.url)}" target="_blank" rel="noopener">${esc(t.file)}:${t.line}</a>`));
+  const list = el('div', 'rows single');
+  t.rows.forEach(r => list.appendChild(r.gap ? markRow('⋯', esc(r.label), 'gap') : richRow(r, t.isNew, seen)));
+  if (t.methods.length) {
+    const row = markRow('ƒ', 'methods', 'meth'), cd = $('.cd', row), open = new Map();
+    t.methods.forEach(m => {
+      const b = el('button', '', `▸ ${esc(m.name)}()`);
+      b.onclick = () => {
+        if (open.has(m.name)) { open.get(m.name).remove(); open.delete(m.name); b.textContent = `▸ ${m.name}()`; return; }
+        const nest = el('div', 'tnest'), inner = el('div', 'rows single');
+        nest.style.marginLeft = gutterWidth(list) + 'px';
+        m.rows.forEach(r => inner.appendChild(richRow(r, t.isNew, seen)));
+        nest.appendChild(inner);
+        ([...open.values()].at(-1) || row).after(nest);
+        open.set(m.name, nest);
+        b.textContent = `▾ ${m.name}()`;
+      };
+      cd.appendChild(b);
+    });
+    list.appendChild(row);
+  }
+  const body = el('div', 'hbody');
+  body.appendChild(list);
+  box.appendChild(body);
+  return box;
+}
+
+// Test cases as a table in place of their literals.
+const CELL_MAX = 72, PREFIX_MIN = 24, PREFIX_ROWS = 3, REST_MIN = 16;
+const flatOf = c => c.toks.map(t => t[1]).join('');
+// Characters a to b of a code cell's one-line form, highlighted.
+function tokSlice(toks, a, b = Infinity) {
+  let pos = 0, out = '';
+  toks.forEach(([cls, text]) => {
+    const s = Math.max(a, pos) - pos, e = Math.min(b, pos + text.length) - pos;
+    if (s < e) out += cls ? `<span class="${cls}">${esc(text.slice(s, e))}</span>` : esc(text.slice(s, e));
+    pos += text.length;
+  });
+  return out;
+}
+// The longest start a cell shares with at least two other rows in its column, cut back to a token boundary: in a test
+// table that part is boilerplate, and the rest is what makes the case different.
+function sharedPrefixes(cells) {
+  const flat = cells.map(c => c && c.str == null ? flatOf(c) : null);
+  return flat.map((a, i) => {
+    if (a == null) return 0;
+    const shared = flat.map((b, j) => {
+      if (j === i || b == null) return 0;
+      let k = 0;
+      while (k < a.length && k < b.length && a[k] === b[k]) k++;
+      return k;
+    }).sort((x, y) => y - x);
+    const best = shared[PREFIX_ROWS - 2] || 0;
+    const cut = Math.max(...['(', '`', ' ', '>', ','].map(ch => a.lastIndexOf(ch, best - 1) + 1));
+    return cut >= PREFIX_MIN && a.length - cut >= REST_MIN ? cut : 0;
+  });
+}
+function testCell(c, col, prefix) {
+  if (!c) return el('td', 'empty', '—');
+  if (c.str != null && !c.multiline) {
+    if (c.str === '') return el('td', 'empty', '""');
+    return el('td', col === 'name' || col === 'desc' ? '' : 'str', esc(c.str));
+  }
+  const td = el('td', 'code');
+  const flat = flatOf(c);
+  const pre = prefix ? `<span class="pre" title="${esc(flat.slice(0, prefix))}">…</span>` : '';
+  const fits = flat.length - prefix <= CELL_MAX;
+  if (fits && !prefix) { td.innerHTML = tokSlice(c.toks, 0); return td; }
+  const short = pre + (fits ? tokSlice(c.toks, prefix) : tokSlice(c.toks, prefix, prefix + CELL_MAX - 1) + '…');
+  const text = el('span', '', short);
+  const more = el('span', 'more', 'more');
+  more.onclick = () => {
+    const open = more.textContent === 'less';
+    text.innerHTML = open ? short : c.html ?? tokSlice(c.toks, 0);
+    more.textContent = open ? 'more' : 'less';
+  };
+  td.append(text, more);
+  return td;
+}
+function caseTable(t, key) {
+  const table = el('table', 'ttable');
+  const tr = el('tr');
+  tr.appendChild(el('th', '', ''));
+  t.columns.forEach(c => tr.appendChild(el('th', '', esc(c))));
+  table.appendChild(el('thead')).appendChild(tr);
+  const tb = el('tbody');
+  const prefixes = Object.fromEntries(t.columns.map(c => [c, sharedPrefixes(t.rows.map(r => r.cells[c]))]));
+  t.rows.forEach((r, i) => {
+    const row = el('tr', r.mark || '');
+    row.dataset.hk = r.keys.map(key).join(' ');
+    row.appendChild(el('td', 'num', i + 1));
+    t.columns.forEach(c => row.appendChild(testCell(r.cells[c], c, prefixes[c][i])));
+    tb.appendChild(row);
+  });
+  table.appendChild(tb);
+  return table;
+}
+// The bar and the table, appended to the list; the case rows that follow go in block.rows, hidden behind the table.
+function caseBlock(t, key, list, first) {
+  const cases = t.rows.length < t.total ? `${t.rows.length} of ${t.total} cases` : `${t.rows.length} cases`;
+  const bar = markRow('⊞', `${cases} as a table · show the code`, 'tbar');
+  const inl = el('div', 'inl');
+  inl.style.paddingLeft = `calc(${gutterWidth(list)}px + ${indentOf(first.h).replace(/\t/g, '    ').length}ch)`;
+  inl.appendChild(caseTable(t, key));
+  const block = { t, rows: [] };
+  bar.onclick = () => {
+    const code = inl.classList.toggle('off');
+    block.rows.forEach(x => x.style.display = code ? '' : 'none');
+    $('.cd', bar).textContent = code ? `${cases} as code · show as a table` : `${cases} as a table · show the code`;
+  };
+  list.append(bar, inl);
+  return block;
+}
+const indentOf = html => (el('span', '', html).textContent.match(/^\s*/) || [''])[0];
+
+// Error handling folded to one line of its real code. The fold row stands for the block's rows; the block they go in
+// replaces it when opened and folds back when clicked. A block a narration step points at wholly starts open.
+function errorFold(f, r, key, focusSets, list, isNew, group) {
+  const row = el('div', `row ${f.k === '+' ? 'add' + (isNew ? ' newfile' : '') : 'ctx'} hp`);
+  const gut = el('span', 'gut');
+  gut.append(el('span', 'ln', r.o ?? ''), el('span', 'ln', r.n ?? ''), el('span', 'sg', '⤷'));
+  row.append(gut, el('span', 'cd', f.html));
+  row.dataset.hk = span(f.a, f.b).map(key).join(' ');
+  row.title = `${f.b - f.a + 1} lines of error handling; click to open`;
+  if (group) { row.classList.add('rfolded'); row.dataset.fold = group; }
+  const full = el('div', 'hpopen');
+  full.title = 'click to fold the error handling again';
+  const open = focusSets.some(s => s.every(i => i >= f.a && i <= f.b));
+  (open ? row : full).style.display = 'none';
+  row.onclick = () => { row.style.display = 'none'; full.style.display = ''; };
+  full.onclick = e => {
+    if (e.target.closest('.tnest, mark.xref:not(.plain), a')) return;
+    full.style.display = 'none';
+    row.style.display = '';
+  };
+  list.append(row, full);
+  return full;
+}
+
 function readHunk(h, si, hi) {
   const box = el('div', 'hunk');
   box.appendChild(hunkHead(h));
   const body = el('div', 'hbody');
-  const focused = new Set(si == null ? [] : SC[si].actions.filter(a => a.type === 'focus').flatMap(a => a.rows).filter(([H]) => H === hi).map(([, r]) => r));
+  const key = ri => `${si}:${hi}:${ri}`;
+  const focusSets = si == null ? [] : SC[si].actions.filter(a => a.type === 'focus')
+    .map(a => a.rows.filter(([H]) => H === hi).map(([, r]) => r)).filter(s => s.length);
+  const focused = new Set(focusSets.flat());
+  const tables = h.tables || [], inTable = new Set(tables.flatMap(t => span(t.a, t.b)));
   for (const [rows, cls] of [[h.rows, 'struct'], [h.raw || h.rows, 'raw']]) {
-    const list = el('div', 'rows ' + cls);
-    const plan = cls === 'struct' ? foldPlan(rows, focused) : rows.map(() => null);
-    let group = null;
+    const struct = cls === 'struct';
+    const list = el('div', `rows ${cls}${rows.every(r => r.o == null) ? ' single' : ''}`);
+    const plan = struct ? foldPlan(rows, focused, inTable) : rows.map(() => null);
+    // An error fold needs the narration fold to leave its rows all shown or all hidden.
+    const folds = struct ? (h.folds || []).filter(f => span(f.a, f.b).every(i => plan[i]?.start === plan[f.a]?.start)) : [];
+    let group = null, holder = list, fold = null, table = null;
     rows.forEach((r, ri) => {
       const p = plan[ri];
-      if (p && p.start === ri) {
-        group = 'f' + foldSeq++;
-        const g = group, n = p.n, fold = el('div', 'row rfold');
-        const label = open => `<span class="gut"><span class="ln"></span><span class="ln"></span><span class="sg">${open ? '▾' : '▸'}</span></span>` +
-          `<span class="cd">${open ? `collapse these ${n} lines` : `${n} lines not covered by the narration`}</span>`;
-        fold.innerHTML = label(false);
-        fold.onclick = () => {
-          const open = fold.classList.toggle('open');
-          fold.innerHTML = label(open);
-          $$(`#read .row[data-fold="${g}"]`).forEach(x => x.classList.toggle('rfolded', !open));
-        };
-        list.appendChild(fold);
-      }
-      const row = rowEl(r, h.isNew);
-      if (cls === 'struct' && si != null) row.dataset.key = `${si}:${hi}:${ri}`;
+      if (p && p.start === ri) { group = 'f' + foldSeq++; list.appendChild(narrationFold(group, p.n)); }
+      const t = struct && tables.find(t => t.a === ri);
+      if (t) table = caseBlock(t, key, list, r);
+      const f = folds.find(f => f.a === ri);
+      if (f) { fold = f; holder = errorFold(f, r, key, focusSets, list, h.isNew, p && group); }
+      const row = struct ? richRow(r, h.isNew, new Set()) : rowEl(r, h.isNew);
+      if (struct && si != null) row.dataset.key = key(ri);
       if (p) { row.classList.add('rfolded'); row.dataset.fold = group; }
-      list.appendChild(row);
+      if (table) { row.style.display = 'none'; table.rows.push(row); }
+      holder.appendChild(row);
+      if (table && ri === table.t.b) table = null;
+      if (fold && ri === fold.b) { fold = null; holder = list; }
     });
     body.appendChild(list);
   }
   box.appendChild(body);
   return box;
 }
+// Lights a step's rows, and whatever stands in for rows that are hidden: an error fold, or a table row.
 function hotRows(si, rows, on) {
-  (rows || []).forEach(([h, r]) => $(`#read .row[data-key="${si}:${h}:${r}"]`)?.classList.toggle('hot', on));
+  (rows || []).forEach(([h, r]) => {
+    const k = `${si}:${h}:${r}`;
+    $$(`#read [data-key="${k}"], #read [data-hk~="${k}"]`).forEach(x => x.classList.toggle('hot', on));
+  });
 }
 function readSection(scene, si) {
   const sec = el('section', 'rsec');
