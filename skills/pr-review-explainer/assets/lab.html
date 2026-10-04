@@ -3,9 +3,13 @@
 <style>
   .lab-intro { color: #c5cad6; max-width: 900px; margin: 22px 0 4px; font-size: 14.5px; line-height: 1.55; }
   .toc { display: flex; gap: 6px; flex-wrap: wrap; }
-  .toc a { font-size: 12.5px; padding: 2px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--dim); }
-  .toc a:hover { color: var(--fg); text-decoration: none; border-color: var(--dim); }
-  .toc a .v { margin-left: 5px; }
+  .toc button { font: inherit; font-size: 12.5px; padding: 2px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--dim);
+    background: none; cursor: pointer; }
+  .toc button:hover { color: var(--fg); border-color: var(--dim); }
+  .toc button.on { color: var(--fg); background: var(--panel2); border-color: var(--blue); }
+  .toc button .v { margin-left: 5px; }
+  .lsec { display: none; }
+  .lsec.on { display: block; }
   .v.keep { color: var(--green); } .v.maybe { color: var(--amber); } .v.drop { color: var(--red); }
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-left: auto; }
   .seg button { background: none; border: 0; color: var(--dim); padding: 4px 12px; font: inherit; font-size: 13px; cursor: pointer; }
@@ -410,11 +414,41 @@ const KEY = `lab-verdicts:${META.github}#${META.pr}:round5`;
 const store = (() => { try { localStorage.getItem(KEY); return localStorage; } catch { return null; } })();
 const verdicts = JSON.parse(store?.getItem(KEY) || '{}');
 const MARK = { keep: '✓', maybe: '?', drop: '✗' };
+// One experiment shows at a time, picked from tabs in the bar; the tab is kept in the URL's hash.
+const tabs = {};
 function saveVerdicts() {
   store?.setItem(KEY, JSON.stringify(verdicts));
-  $('#toc').innerHTML = EXPS.map(x => `<a href="#x-${x.id}">${esc(x.title)}${verdicts[x.id]?.v ? `<span class="v ${verdicts[x.id].v}">${MARK[verdicts[x.id].v]}</span>` : ''}</a>`).join('');
+  EXPS.forEach(x => {
+    const v = verdicts[x.id]?.v;
+    if (tabs[x.id]) tabs[x.id].button.innerHTML = esc(x.title) + (v ? `<span class="v ${v}">${MARK[v]}</span>` : '');
+  });
   const ta = $('#verdicts textarea');
   if (ta) ta.value = EXPS.map(x => `${x.title}: ${verdicts[x.id]?.v || '(no verdict)'}${verdicts[x.id]?.note ? ' — ' + verdicts[x.id].note : ''}`).join('\n');
+}
+function selectTab(id) {
+  if (!tabs[id]) id = Object.keys(tabs)[0];
+  Object.entries(tabs).forEach(([k, t]) => {
+    const on = k === id;
+    t.button.classList.toggle('on', on);
+    if (on && !t.section) {
+      t.section = t.make();
+      $('#rbody').appendChild(t.section);
+      saveVerdicts();
+    }
+    t.section?.classList.toggle('on', on);
+  });
+  try { history.replaceState(null, '', '#' + id); } catch { /* sandboxed viewers may refuse; the tab still switches */ }
+  hidePop();
+  scrollTo(0, 0);
+  scrollers.forEach(f => f());
+  trackers.forEach(f => f());
+}
+function verdictsSection() {
+  const sec = el('section', 'rsec lsec', '<div class="rhead"><span class="kicker">Verdicts</span><h2>To paste back</h2></div>');
+  sec.id = 'verdicts';
+  sec.appendChild(el('textarea'));
+  $('textarea', sec).readOnly = true;
+  return sec;
 }
 // Today views are built the first time they're shown.
 function section(x, i, view) {
@@ -469,21 +503,21 @@ window.labRead = () => {
   $('#read').append(pop, dock);
   document.title = `Read-mode experiments · ${META.title}`;
   $('#rtitle').innerHTML = `Read-mode experiments<small>${linkify(esc(META.kicker))} · ${esc(META.title)}</small>`;
-  const toc = el('div', 'toc');
-  toc.id = 'toc';
-  $('#rbar').insertBefore(toc, $('#playTour'));
-  const q =new URLSearchParams(location.search), only = q.get('only'), view = q.get('view') === 'today' ? 'today' : 'exp';
-  const body = $('#rbody');
-  if (!only) body.appendChild(el('p', 'lab-intro', 'Round 5: five ideas tried on this PR\'s own read mode. The renderings you kept are already in it. Flip <b>Today</b> and <b>Experiment</b> to compare, then leave a verdict; verdicts collect at the bottom to paste back.'));
-  EXPS.forEach((x, i) => { if (!only || only === x.id) body.appendChild(section(x, i, view)); });
-  if (!only) {
-    const sec = el('section', 'rsec', '<div class="rhead"><span class="kicker">Verdicts</span><h2>To paste back</h2></div>');
-    sec.id = 'verdicts';
-    sec.appendChild(el('textarea'));
-    $('textarea', sec).readOnly = true;
-    body.appendChild(sec);
-  }
+  const bar = el('div', 'toc');
+  $('#rbar').insertBefore(bar, $('#playTour'));
+  const q = new URLSearchParams(location.search), view = q.get('view') === 'today' ? 'today' : 'exp';
+  $('#rbody').appendChild(el('p', 'lab-intro', 'Round 5: five ideas tried on this PR\'s own read mode, one per tab. The renderings you kept are already in it. Flip <b>Today</b> and <b>Experiment</b> to compare, then leave a verdict; the last tab collects them to paste back.'));
+  const add = (id, title, make) => {
+    const button = el('button', '', esc(title));
+    button.onclick = () => selectTab(id);
+    bar.appendChild(button);
+    tabs[id] = { button, make };
+  };
+  EXPS.forEach((x, i) => add(x.id, x.title, () => section(x, i, view)));
+  add('verdicts', 'Verdicts', verdictsSection);
   saveVerdicts();
+  selectTab(q.get('only') || location.hash.slice(1));
+  addEventListener('hashchange', () => selectTab(location.hash.slice(1)));
   setBarHeight();
 };
 </script>
