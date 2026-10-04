@@ -1,7 +1,9 @@
-# Pronunciations Kokoro gets wrong. Shared across every PR, so add terms here as you find them.
-# `spell` terms are read letter by letter (SAR -> "ess ay ar"); `ipa` terms are written out in full.
-# A spec can add its own with `lexicon: {TERM: spell}` or `lexicon: {TERM: "<ipa>"}`.
-# Check the phoneme dump the build prints for any cue with capitals or digits.
+# Pronunciations the voices get wrong. Shared across every PR, so add terms here as you find them.
+# `spell` terms are read letter by letter by every voice (SAR -> "ess ay ar").
+# Other terms are written out twice: `ipa` for Kokoro, which reads phonemes, and `text` for Breeze and the other
+# mlx voices, which read a plain-text respelling. A term with no `text` entry is read as written by those voices.
+# A spec can add its own with `lexicon: {TERM: spell}`, `{TERM: "<ipa>"}` or `{TERM: {ipa: ..., text: ...}}`.
+# Check the "spoken as" dump the build prints for any cue with capitals or digits.
 
 spell:
   # general
@@ -13,8 +15,6 @@ spell:
   - SQL
   - XML
   - XSD
-  - JSON
-  - YAML
   - URI
   - URL
   - HTTP
@@ -23,6 +23,8 @@ spell:
   - TTL
   - UUID
   # 4G / 5G / IMS
+  - IMS
+  - SMS
   - HSS
   - UDM
   - UDR
@@ -42,11 +44,9 @@ spell:
   - UAR
   - LIR
   - PLMN
-  - TAS
   - SMSC
   - SPT
   - SPTs
-  - SIP
   - SDP
   - IMPU
   - IMPI
@@ -60,6 +60,11 @@ spell:
   - I-CSCF
 
 ipa:
+  # Acronyms said as words.
+  JSON: "dʒˈeɪsən"
+  YAML: "jˈæməl"
+  SIP: "sˈɪp"
+  TAS: "tˈæs"
   IMSI: "ˈɪmzi"
   S6a: "ˌɛs sˌɪks ˈeɪ"
   S6d: "ˌɛs sˌɪks dˈiː"
@@ -70,7 +75,30 @@ ipa:
   ULR-Flags: "jˌuː ˌɛl ˈɑːɹ flˈæɡz"
   AvpError: "ˌeɪvˌiːpˈiː ˈɛɹɚ"
   AvpSpec: "ˌeɪvˌiːpˈiː spˈɛk"
-  VoLTE: "vˈoʊlteɪ"
+  VoLTE: "vˈoʊltiː"
   Diameter: "daɪˈæmɪtɚ"
   multierr: "mˈʌltiː ˈɛɹɚ"
   difftastic: "dɪftˈæstɪk"
+
+text:
+  # SIP methods are written in capitals but said as words.
+  INVITE: "invite"
+  REGISTER: "register"
+  # Acronyms said as words.
+  JSON: "jason"
+  YAML: "yammel"
+  SIP: "sip"
+  TAS: "tass"
+  IMSI: "imzee"
+  S6a: "S six A"
+  S6d: "S six D"
+  Cx: "C X"
+  iFC: "I F C"
+  iFCs: "I F Cs"
+  Failed-AVP: "failed A V P"
+  ULR-Flags: "U L R flags"
+  AvpError: "A V P error"
+  AvpSpec: "A V P spec"
+  VoLTE: "vole-tee"
+  multierr: "multi-err"
+  difftastic: "diff-tastic"

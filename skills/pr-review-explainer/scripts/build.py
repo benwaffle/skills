@@ -4,7 +4,7 @@
 # ///
 """Build a PR walkthrough (narrated tour + read-mode document) from a scene spec.
 
-    uv run build.py spec.yaml [--out PATH] [--no-audio]
+    uv run build.py spec.yaml [--out PATH] [--no-audio] [--voice NAME]
 
 The spec format is documented in ../reference/spec.md.
 """
@@ -299,7 +299,7 @@ def find(rows, marker, after=0, what="marker"):
 # ---------------- spec -> data ----------------
 
 class Builder:
-    def __init__(self, spec, spec_dir, silent, fetch=True):
+    def __init__(self, spec, spec_dir, silent, fetch=True, voice=None):
         self.spec, self.silent, self.fetch = spec, silent, fetch
         repo_path = os.path.expanduser(spec["repo"])
         if not os.path.isabs(repo_path):
@@ -307,9 +307,17 @@ class Builder:
         self.repo = Repo(repo_path, spec.get("base", "origin/main"), spec["github"])
         self.voice = None
         if not silent:
-            from tts import Voice, load_lexicon
+            from tts import load_voice
 
-            self.voice = Voice(load_lexicon(spec.get("lexicon")))
+            try:
+                self.voice = load_voice(voice or spec.get("voice"), spec.get("lexicon"))
+            except ValueError as e:
+                raise SpecError(e)
+
+    def speech(self, cue):
+        if isinstance(cue, str):
+            cue = {"say": cue}
+        return cue.get("speak") or self.parse_say(cue["say"])[0]
 
     def hunk_window(self, h):
         fd = self.repo.file(h["file"])
@@ -381,6 +389,7 @@ class Builder:
         if self.voice:
             from tts import RATE, silence
 
+            self.voice.prepare([self.speech(c) for sc in spec["scenes"] for c in sc["cues"]])
             parts.append(silence(LEAD_IN))
         for si, sc in enumerate(spec["scenes"]):
             scene = {k: v for k, v in sc.items() if k not in ("cues", "hunks")}
@@ -398,11 +407,15 @@ class Builder:
                 text, anchors = self.parse_say(cue["say"])
                 speech = cue.get("speak") or text
                 if self.voice:
-                    samples, phonemes = self.voice.speak(speech)
+                    samples, spoken = self.voice.speak(speech)
                     dur = len(samples) / RATE
                     parts += [samples, silence(CUE_GAP)]
                     if re.search(r"[A-Z]{2,}|\d|[a-z][A-Z]", speech):
-                        print(f"    phonemes: {speech}\n              {phonemes}")
+                        print(f"    spoken as: {speech}\n               {spoken}")
+                    # Autoregressive voices can lose their place and babble; far more audio than words is the sign.
+                    words = len(speech.split())
+                    if dur > 2 * words / WORDS_PER_SEC + 1:
+                        print(f"    warning: {dur:.1f}s of audio for {words} words; listen to this cue: {speech[:70]}")
                 else:
                     dur = max(1.2, len(speech.split()) / WORDS_PER_SEC)
                 cue_start = t
@@ -510,11 +523,12 @@ def main():
     ap.add_argument("--out")
     ap.add_argument("--no-audio", action="store_true", help="silent preview with estimated timings (no TTS)")
     ap.add_argument("--no-fetch", action="store_true", help="skip fetching Jira/GitHub titles for link hover cards")
+    ap.add_argument("--voice", help="a voice from voices.yaml; overrides the spec's `voice:`")
     args = ap.parse_args()
     with open(args.spec) as f:
         spec = yaml.safe_load(f)
     try:
-        data, times = Builder(spec, os.path.dirname(os.path.abspath(args.spec)), args.no_audio, not args.no_fetch).build()
+        data, times = Builder(spec, os.path.dirname(os.path.abspath(args.spec)), args.no_audio, not args.no_fetch, args.voice).build()
     except SpecError as e:
         sys.exit(f"spec error: {e}")
     out = args.out or os.path.join(os.environ.get("BB_THREAD_STORAGE", "."), "reports", f"pr{spec.get('pr', 'x')}-walkthrough.html")

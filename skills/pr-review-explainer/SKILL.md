@@ -14,7 +14,7 @@ allowed-tools:
 
 One HTML file, two modes over the same scene data:
 
-- **Tour**: a 1280×720 player. Kokoro narration drives a timeline that scrolls the real diff, focuses line ranges, morphs old code into new, and slides review notes and small widgets into a side column. Scrubbing, speed, chapters and `?t=` deep links are exact, because every animation is a paused Web Animation set from the audio clock.
+- **Tour**: a 1280×720 player. Narration (Breeze TTS 2 by default) drives a timeline that scrolls the real diff, focuses line ranges, morphs old code into new, and slides review notes and small widgets into a side column. Scrubbing, speed, chapters and `?t=` deep links are exact, because every animation is a paused Web Animation set from the audio clock.
 - **Read**: the same scenes as a document. The code is on the left. On the right, one block per narrated step; hovering a block lights up its rows. Rows no step points at are folded, and every fold can be collapsed again. A toggle switches between the structural diff (default) and the raw line diff. "▶ from here" jumps into the tour. A final section lists every hunk the tour skipped, so nothing in the PR is hidden.
 
 The diff is the spine. Everything else hangs off a specific hunk.
@@ -23,8 +23,9 @@ The diff is the spine. Everything else hangs off a specific hunk.
 
 - `uv`, `ffmpeg`, Google Chrome, and `difftastic` (`brew install difftastic`).
 - Optional: `gh` and `twg`, authenticated, so the build can fetch the titles shown when hovering PR and Jira links.
-- Kokoro model files `kokoro-v1.0.onnx` and `voices-v1.0.bin` in `~/Downloads/kokoro/`, or set `KOKORO_DIR`.
-- `uv run` and headless Chrome must run **outside the sandbox**. uv needs `~/.cache/uv` and PyPI on first run; Chrome needs its own profile. Inference itself is offline.
+- The default voices (`calm-female`, `calm-male` in [scripts/voices.yaml](scripts/voices.yaml)) use Breeze TTS 2 through mlx-audio, so they need **Apple Silicon**. The first build downloads the model, about 3 GB. Narration runs at about real time; cached cues are instant. Breeze's license is research and non-commercial only.
+- `--voice michael` uses Kokoro instead. It is about 6× faster, runs anywhere, and needs `kokoro-v1.0.onnx` and `voices-v1.0.bin` in `~/Downloads/kokoro/` (or set `KOKORO_DIR`).
+- `uv run` and headless Chrome must run **outside the sandbox**. uv needs `~/.cache/uv`, PyPI and GitHub on first run, and Breeze needs Hugging Face; Chrome needs its own profile. After the first run, inference is offline.
 
 ## Workflow
 
@@ -33,7 +34,7 @@ The diff is the spine. Everything else hangs off a specific hunk.
 3. **Plan the tour** (rules below), then write `spec.yaml` at `$BB_THREAD_STORAGE/pr-explainer/pr<N>/spec.yaml`. The format is in [reference/spec.md](reference/spec.md); a complete (fictional) example is [examples/example.yaml](examples/example.yaml). Keep real specs out of this public repo.
 4. **Silent preview**: `uv run scripts/build.py <spec> --no-audio`. This resolves every marker (a bad marker fails the build with the reason) and estimates timings without TTS.
 5. **Verify**: `uv run scripts/verify.py <html>`. Read **every** contact sheet. It screenshots each scene start and each action, plus one frame per read-mode section. Layout overflows are reported as JS errors and drawn as a red banner in the frame. Fix, rebuild, re-verify.
-6. **Narrate**: `uv run scripts/build.py <spec>`. Read the phoneme dump it prints for every cue with capitals or digits. Add reusable terms to [scripts/lexicon.yaml](scripts/lexicon.yaml) (`spell:` for letter-by-letter, `ipa:` for the rest) and PR-only terms to the spec's `lexicon`. Rebuild; cached cues are instant.
+6. **Narrate**: `uv run scripts/build.py <spec>`. Read the "spoken as" dump it prints for every cue with capitals or digits: respelled text for Breeze, phonemes for Kokoro. Add reusable terms to [scripts/lexicon.yaml](scripts/lexicon.yaml) (`spell:` for letter-by-letter; otherwise both `text:` and `ipa:`) and PR-only terms to the spec's `lexicon`. A warning about far more audio than words means the voice lost its place; listen to that cue and reword it. Rebuild; cached cues are instant.
 7. **Verify again**, then show it:
 
    ```
@@ -53,7 +54,7 @@ These come from Ben's feedback on earlier explainers.
 - **Skip mechanical repeats.** Show one instance and say the others are the same. Signature threading and test churn rarely need their own scene; the read mode's "rest of the diff" covers them.
 - **Keep it under about 4 minutes.** Cut whatever a reviewer wouldn't get wrong without help. Don't narrate behavior the PR didn't change.
 - **Widgets:** tables of at most about 8 rows, short labels, no ASCII art or monospace trees. A side column holds about 470px; the layout check enforces it.
-- **Speech:** spell numbers and identifiers the way they should sound in `speak:` ("PR five twenty five", "build user profile"); the caption keeps the real tokens.
+- **Speech:** spell numbers and identifiers the way they should sound in `speak:` ("PR five twenty five", "build user profile"); the caption keeps the real tokens. Avoid coined words: every voice tested fumbled "or-ed" and "and-ed", so say "joined with OR".
 - **Link tickets:** set `jira:` in the spec (site plus project keys; take the site from the PR's ticket link) so ticket keys link everywhere. `#N` links to that PR automatically.
 - **No summary of findings up front.** Findings appear where their code is, and again in the verdict.
 
@@ -64,8 +65,9 @@ These come from Ben's feedback on earlier explainers.
 
 ## Files
 
-- `scripts/build.py`: spec → HTML. Merge-base diff, whole-file pygments highlighting, difftastic structural rows, Kokoro TTS, timeline, GitHub permalinks, uncovered-hunk listing.
-- `scripts/tts.py`, `scripts/lexicon.yaml`: Kokoro wrapper, pronunciation lexicon, per-cue WAV cache in `~/.cache/pr-review-explainer/tts`.
+- `scripts/build.py`: spec → HTML. Merge-base diff, whole-file pygments highlighting, difftastic structural rows, narration, timeline, GitHub permalinks, uncovered-hunk listing.
+- `scripts/tts.py`, `scripts/voices.yaml`, `scripts/lexicon.yaml`: the voices, the pronunciation lexicon, and the per-cue WAV cache in `~/.cache/pr-review-explainer/tts`.
+- `scripts/tts_mlx.py`: runs the mlx-audio model (Breeze) in its own uv environment, once per build for every uncached cue.
 - `scripts/verify.py`: contact sheets and JS/layout errors.
 - `assets/template.html`: the player (tour + read).
 - `reference/spec.md`: the spec format. `reference/experiments.md`: visualization ideas, with which ones are built and what to try next.

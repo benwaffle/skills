@@ -14,9 +14,11 @@ kicker: "PR #42 · WEB-7"         # "#N" anywhere in rendered text links to that
 jira:                            # ticket keys in these projects link to the ticket everywhere they're rendered
   site: https://example.atlassian.net
   projects: [WEB]
+voice: calm-female               # optional: a voice from scripts/voices.yaml (build.py --voice overrides it)
 lexicon:                         # PR-only pronunciations (reusable ones go in scripts/lexicon.yaml)
-  cfg: spell                     # read letter by letter
-  Acme: "ˈækmi"                  # IPA
+  cfg: spell                     # read letter by letter, by every voice
+  Acme: { ipa: "ˈækmi", text: "acky" }   # ipa for Kokoro, a text respelling for Breeze; give both
+  Zorp: "zˈɔːɹp"                 # a bare string is IPA, so only Kokoro uses it
 
 scenes:
   - kind: stat | code | summary

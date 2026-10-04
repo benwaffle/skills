@@ -1,0 +1,31 @@
+# Narration voices. build.py uses `default` unless the spec sets `voice:` or it gets --voice.
+#
+# mlx voices have no presets: tts_mlx.py designs one from `design` once, reading `reference`, and caches the clip in
+# ~/.cache/pr-review-explainer/voices/<name>.wav. Every cue then clones that clip, so the voice holds across cues and
+# tours. Design and cloning are deterministic for a given `seed`, so a lost cache regenerates the same voice.
+#
+# Breeze TTS 2 won a blind bake-off against Kokoro, Qwen3-TTS, Voxtral, VoxCPM2 and Chatterbox Turbo.
+# Its license is research and non-commercial only.
+
+default: calm-female
+seed: 7
+reference: "Let's walk through this pull request together, one change at a time, starting with the new rules."
+
+voices:
+  calm-female:
+    engine: mlx
+    repo: mlx-community/Breeze-TTS-2-mlx-4bit
+    design: "A calm, clear female voice in her thirties. A senior software engineer explaining code to a colleague: measured pace, warm, conversational, not theatrical."
+    clone: [ref_audio, ref_text]
+    kwargs: { cfg_scale: 4 }
+  calm-male:
+    engine: mlx
+    repo: mlx-community/Breeze-TTS-2-mlx-4bit
+    design: "A calm, clear male voice in his thirties. A senior software engineer explaining code to a colleague: measured pace, warm, conversational, not theatrical."
+    clone: [ref_audio, ref_text]
+    kwargs: { cfg_scale: 4 }
+  # About 6x faster than Breeze, runs on any machine, and reads exact IPA from the lexicon.
+  michael:
+    engine: kokoro
+    voice: am_michael
+    speed: 1.1
