@@ -73,7 +73,7 @@ These come from Ben's feedback on earlier explainers.
 
 ## Lab
 
-`uv run scripts/lab.py <spec>` builds `reports/pr<N>-lab.html`, a page of diff-rendering experiments tried on the PR's own code. Each experiment has a Today / Experiment toggle and verdict buttons. Use the lab when Ben is judging experiments, and record his verdicts in [reference/experiments.md](reference/experiments.md). A kept experiment moves into read mode and leaves the lab.
+`uv run scripts/lab.py <spec>` builds `reports/pr<N>-lab.html`. It is the PR's own read mode, built silently, with experiments laid over it by [assets/lab.html](assets/lab.html), so each Today view is the real read mode. Each experiment has a Today / Experiment toggle and verdict buttons. Use the lab when Ben is judging experiments, and record his verdicts in [reference/experiments.md](reference/experiments.md). A kept experiment moves into read mode and leaves the lab.
 
 ## Files
 

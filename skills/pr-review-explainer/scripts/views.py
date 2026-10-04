@@ -230,8 +230,10 @@ class Views:
         changed, is_new = self.changed(path), self.is_new(path)
         rows = []
         for n in range(start, min(end, len(toks)) + 1):
+            links = self.row_links(path, n)
+            self.used.update(l[2] for l in links if len(l) == 3)
             row = {"k": "+" if is_new or n in changed else " ", "o": None, "n": n,
-                   "h": render(toks[n - 1], [], "", link_layers(lines[n - 1], self.row_links(path, n)))}
+                   "h": render(toks[n - 1], [], "", link_layers(lines[n - 1], links))}
             if (path, n) in self.ann:
                 row["ann"] = self.ann[(path, n)]
             rows.append(row)

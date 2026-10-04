@@ -48,6 +48,14 @@ These are Ben's ideas for visualizing a PR. He wants all of them tried, one at a
 | Test cases as a table, inside the test | The test function as code, with the case literals replaced in place by the table; a bar switches between table and code. Columns are the field names as written. Code cells are syntax-highlighted. Boilerplate shared by 3+ cases shows as `…`, and every trimmed or cut cell has **more** to show it in full. | keep ("lgtm") |
 | Happy path | Each error-handling `if` (no else) joined onto one dimmed, highlighted line of its real code, like an editor fold. It counts when the condition checks `err != nil`, or when the body only returns an error, assigns to err-named variables (`errs = multierr.Append(…)`), panics or calls a `Fatal` log, optionally ending in `continue` or `break`. Calls that do real work stay bright (`if err := f(); …`, `errs = multierr.Append(errs, x.validate())`); error constructors, builtins and conversions dim with the rest. Opening a fold replaces the line with the block; clicking the block folds it again. | keep ("lgtm") |
 
+| Round 5 (on the real read mode) | What the lab shows | Verdict |
+|---|---|---|
+| Peek, don't jump | Calls and type names that resolve into the PR's packages are dotted. Hover shows the declaration and the changed lines that call it. Click pins the card in a dock at the right; click again or × unpins. Cards peek further. Resolution is tree-sitter only: same package, imports by local name, and variables whose type the function declares (receiver, parameters, `x := T{}`, range variables, struct fields). | pending |
+| Call flow: a strip across the top | The functions the PR changes in call order, depth-first from those no other changed function calls. Depth goes down and order goes across, with the current function outlined. Each function shows whole, with what calls it and what it calls. Today is file order. On a 63-function PR the strip is about 10,000px wide. | pending |
+| Call flow: a rail down the side | The same order as an indented tree in a sticky rail. | pending |
+| Graphics that follow your scroll | The step whose rows are at mid-window lights up, its rows light, and the other steps fade. The scene's widget sits at the top of the side column and reveals step by step, as in the video. | pending |
+| Graphics inside the code | Each widget sits in the code column under the rows the narration was on when it appeared, fully revealed, with its step's first sentence. | pending |
+
 All three moved into read mode (see Built), with no global toggles: Ben said "we don't need toggles, mostly, esp for things that have no impact when collapsed or things with built-in toggles". The tour still shows plain code.
 
 ## Tried and dropped
@@ -75,9 +83,7 @@ A subagent ran the whole skill on a 40-file PR that mostly modifies existing cod
 ## To try
 
 - **Explaining code without replacing it.** Ben: "keep exploring ideas around explaining code". Two summaries lost to the code they described (chips and the outline), so explanations should sit beside the code or inside it, not in place of it.
-- **Peek, don't jump.** Hover a symbol in the diff to see its definition or its other changed call sites in a popover; click to pin it in a side panel. Needs a symbol index; `ast-grep` or tree-sitter over the PR head. Ben: "i like it".
-- **Call-flow strip as the table of contents.** Hover a node to peek that function's hunk; click to expand it under the strip. Or a sticky mini-map of the flow next to the diff, with a "you are here" marker that tracks scrolling. Ben likes "how it guides me thru the PR in a logical order" and is weighing horizontal against vertical timelines and tables of contents, so try both.
-- **Graphics beside the diff in read mode.** The tour's widgets (tables, flows, and the message ladder) "work great in the video"; Ben wonders how to bring them in alongside the code diff.
+- **Peek, call flow, graphics beside the diff:** in the lab as round 5. Ben said "i like it" to peek. For the call flow, he likes "how it guides me thru the PR in a logical order" and is weighing horizontal against vertical. For graphics, the widgets "work great in the video" and he wondered how they fit beside the diff.
 - **Switches as tables.** Render a `switch` as value → behavior (enum values already show with the types).
 - **Lab experiments in other languages.** Table tests from pytest `parametrize`; happy path for Python `try/except`, TS `catch`, Rust `?`/`match Err`; compare happy path against pseudocode on the same function.
 - **Pseudocode summaries.** Ben is undecided.

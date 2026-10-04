@@ -1,9 +1,5 @@
-<!doctype html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>Diff experiments</title>
-<style>/*CSS*/</style>
+<!-- lab.py appends this to the walkthrough page (assets/template.html) before </body>. labRead renders the experiments
+     in place of read mode, reusing read mode's own functions, so every Today view is the real read mode. -->
 <style>
   .lab-intro { color: #c5cad6; max-width: 900px; margin: 22px 0 4px; font-size: 14.5px; line-height: 1.55; }
   .toc { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -19,6 +15,9 @@
   .why code { font-family: var(--mono); font-size: .88em; background: #252935; padding: 0 4px; border-radius: 4px; }
   .lsec .view { display: none; }
   .lsec[data-view=exp] .view.exp, .lsec[data-view=today] .view.today { display: block; }
+  .lsec .rsec { padding: 14px 0 6px; }
+  .lsec .rsec:last-child { border-bottom: 0; }
+  .lsec .rsec h2 { font-size: 18px; }
   .verdict { display: flex; gap: 8px; align-items: center; margin: 16px 0 6px; font-size: 13px; color: var(--dim); }
   .verdict button { background: var(--panel2); color: var(--dim); border: 1px solid var(--line); border-radius: 8px; padding: 4px 12px; font: inherit; cursor: pointer; }
   .verdict button.on.keep { color: var(--green); border-color: var(--green); }
@@ -27,47 +26,385 @@
   .verdict input { flex: 1; max-width: 560px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; color: var(--fg); padding: 5px 10px; font: inherit; }
   .note-line { color: var(--dim); font-size: 13px; margin: 0 0 10px; }
   .gap-panel { margin-bottom: 12px; }
-  .hhead .count { color: var(--dim); margin-left: auto; font-size: 12px; }
-  #verdicts textarea { width: 100%; max-width: 900px; height: 110px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; color: var(--fg); font: 13px var(--mono); padding: 10px; }
+  #verdicts textarea { width: 100%; max-width: 900px; height: 130px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; color: var(--fg); font: 13px var(--mono); padding: 10px; }
+
+  /* peek */
+  mark.peek { background: none; color: inherit; }
+  .peek-on .rows mark.peek { text-decoration: underline dotted rgba(139,146,163,.55); text-underline-offset: 3px; cursor: help; }
+  .peek-on .rows mark.peek:hover { color: var(--blue); text-decoration-color: var(--blue); }
+  #popover { position: fixed; z-index: 60; display: none; width: min(640px, calc(100vw - 24px)); max-height: 62vh; overflow: auto;
+    border-radius: 10px; box-shadow: 0 10px 34px rgba(0,0,0,.55); }
+  .pcard { background: #1b1f2a; border: 1px solid #39405a; border-radius: 10px; overflow: hidden; }
+  .phead { display: flex; gap: 8px; align-items: baseline; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .phead .pkind { font: 10.5px var(--mono); color: var(--violet); }
+  .phead b { font: 600 13px var(--mono); }
+  .phead .ploc, .phead a { margin-left: auto; color: var(--dim); font: 11px var(--mono); }
+  .phead .px { background: none; border: 0; color: var(--dim); cursor: pointer; font-size: 16px; line-height: 1; padding: 0 2px; }
+  .phead .px:hover { color: var(--fg); }
+  .pmore, .psub { color: var(--dim); font-size: 12px; padding: 6px 12px; }
+  .pcall { display: flex; gap: 10px; padding: 3px 12px; font: 12px var(--mono); white-space: pre; overflow: hidden; color: var(--fg); }
+  .pcall:hover { background: rgba(110,170,255,.08); text-decoration: none; }
+  .pcall .ploc { color: var(--dim); flex: none; }
+  #peekdock { position: fixed; right: 14px; top: calc(var(--barh, 52px) + 10px); bottom: 14px; width: 520px; overflow: auto;
+    display: flex; flex-direction: column; gap: 10px; z-index: 40; pointer-events: none; }
+  #peekdock > * { pointer-events: auto; flex: none; }
+
+  /* call flow */
+  .hhead .fname { font: 600 12.5px var(--mono); color: var(--fg); margin-right: 4px; }
+  .fname small, .fchip small, .frow small { color: var(--dim); font-size: inherit; }
+  .frel { padding: 5px 14px; font-size: 12px; color: var(--dim); border-bottom: 1px solid var(--line); background: #171a22; }
+  .frel a { font: 11.5px var(--mono); cursor: pointer; margin: 0 4px; }
+  .fstrip { position: sticky; top: var(--barh, 52px); z-index: 6; background: var(--bg); border: 1px solid var(--line);
+    border-radius: 10px; margin-bottom: 12px; overflow: auto; max-height: 38vh; scrollbar-width: thin; }
+  .fs-in { position: relative; display: grid; padding: 10px 12px; column-gap: 12px; row-gap: 6px; width: max-content; grid-auto-rows: 24px; }
+  .fs-in svg { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
+  .fchip { position: relative; z-index: 1; font: 11.5px/18px var(--mono); padding: 2px 8px; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--panel); color: var(--fg); white-space: nowrap; cursor: pointer; }
+  .fgrid { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 14px; align-items: start; }
+  .frail { position: sticky; top: calc(var(--barh, 52px) + 12px); max-height: calc(100vh - var(--barh, 52px) - 24px); overflow: auto;
+    border: 1px solid var(--line); border-radius: 10px; padding: 6px 0; background: var(--panel); }
+  .frow { display: block; font: 12px/20px var(--mono); padding: 1px 10px; color: var(--fg); border-left: 2px solid transparent;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  .frow .tw { color: #4d5466; }
+  .fchip:hover, .frow:hover { border-color: var(--dim); text-decoration: none; }
+  .fchip.here { border-color: var(--blue); background: #1d2433; color: #fff; }
+  .frow.here { border-left-color: var(--blue); background: #1d2433; color: #fff; }
+
+  /* graphics that follow the scroll */
+  .lsec .rsteps { top: calc(var(--barh, 52px) + 12px); }
+  .scrolly .rstep { opacity: .4; transition: opacity .2s; }
+  .scrolly .rstep.active { opacity: 1; border-left-color: var(--blue); }
+  .scrolly .rstep:not(.active) .say { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .scrolly .rstep:not(.active) .note { display: none; }
+  .stage:empty { display: none; }
+  .stage [data-step], .stage [data-hl] { transition: opacity .25s, box-shadow .25s; }
+  .stage .later { opacity: .1; }
+  .stage .lit { box-shadow: 0 0 0 2px rgba(110,170,255,.9); border-radius: 4px; }
+
+  /* graphics inside the code */
+  .inlw { margin: 8px 16px 12px 0; max-width: 680px; white-space: normal; font-family: -apple-system, sans-serif; }
+  .inlw .cap { color: var(--dim); font-size: 11.5px; margin: 0 0 4px 2px; }
 </style>
-</head>
-<body class="mode-read">
-<div id="read">
-  <div id="rbar"><div class="ttl" id="rtitle"></div><div class="toc" id="toc"></div></div>
-  <div id="rbody"></div>
-</div>
 <script>
-const DATA = /*DATA*/null;
-const META = DATA.meta;
-const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
-const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const splitPath = p => { const i = p.lastIndexOf('/'); return `<span class="path"><span class="dir">${esc(p.slice(0, i + 1))}</span><span class="base">${esc(p.slice(i + 1))}</span></span>`; };
-const KIND = { '+': 'add', '-': 'del', ' ': 'ctx', '~': 'cos', '±': 'mod' };
-const SIGN = { '+': '+', '-': '−', ' ': '', '~': '≈', '±': '±' };
-function rowEl(r, isNew) {
-  const row = el('div', 'row ' + KIND[r.k] + (r.k === '+' && isNew ? ' newfile' : ''));
-  const gut = el('span', 'gut');
-  gut.append(el('span', 'ln', r.o ?? ''), el('span', 'ln', r.n ?? ''), el('span', 'sg', SIGN[r.k]));
-  row.append(gut, el('span', 'cd', r.h || ' '));
-  return row;
+const LAB = /*LAB*/null;
+const P = LAB.peek, FLOW = LAB.flow, FN = Object.fromEntries(FLOW.map(n => [n.id, n]));
+const baseName = p => p.slice(p.lastIndexOf('/') + 1);
+const codeScenes = SC.map((s, i) => [s, i]).filter(([s]) => s.kind === 'code');
+const widgetScenes = codeScenes.filter(([s]) => Object.keys(s.widgets || {}).length);
+const panelOf = children => { const p = el('div', 'rcode gap-panel'); children.forEach(c => p.appendChild(c)); return p; };
+// The lab shows a scene more than once, so its sections drop the id read mode gives them.
+function scene(s, si) {
+  const sec = readSection(s, si);
+  sec.removeAttribute('id');
+  return sec;
 }
-function head(w, extra = '') {
-  return el('div', 'hhead', `<a href="${esc(w.url)}" target="_blank" rel="noopener">${splitPath(w.file)}</a>${w.isNew ? '<span class="newf">new file</span>' : ''}${extra}<span class="rng">${w.range}</span>`);
+const scenes = (list, make) => { const r = el('div'); list.forEach(([s, i]) => r.appendChild(make(s, i))); return r; };
+const setBarHeight = () => document.documentElement.style.setProperty('--barh', $('#rbar').offsetHeight + 'px');
+addEventListener('resize', setBarHeight);
+
+// ================= a popover, and a dock of pinned cards =================
+const pop = el('div'), dock = el('div', 'peek-on');
+pop.id = 'popover';
+dock.id = 'peekdock';
+let popFor = null, popTimer = 0, hideTimer = 0;
+// Below the anchor, or above it when there's more room there, and never over it, so the anchor stays clickable.
+function showPop(anchor, content) {
+  pop.replaceChildren(content);
+  pop.style.maxHeight = '';
+  pop.style.display = 'block';
+  const r = anchor.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+  const below = innerHeight - r.bottom - 14, above = r.top - 14, down = below >= Math.min(h, 240) || below >= above;
+  const fit = Math.min(h, down ? below : above);
+  pop.style.maxHeight = fit + 'px';
+  pop.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + 'px';
+  pop.style.top = (down ? r.bottom + 6 : r.top - 6 - fit) + 'px';
+  popFor = anchor;
 }
-function hunk(w) {
-  const box = el('div', 'hunk'), body = el('div', 'hbody');
-  const list = el('div', 'rows' + (w.rows.every(r => r.o == null) ? ' single' : ''));
-  w.rows.forEach(r => list.appendChild(rowEl(r, w.isNew)));
+function hidePop() { pop.style.display = 'none'; popFor = null; }
+// What shows on hover: a symbol's peek in code that has peeks on, or a changed function from the call flow.
+const POPS = [
+  { sel: '.peek-on mark.peek', make: a => P[a.dataset.ref] && peekCard(a.dataset.ref) },
+  { sel: '[data-fpeek]', make: a => FN[a.dataset.fpeek] && flowCard(a.dataset.fpeek) },
+];
+document.addEventListener('mouseover', e => {
+  clearTimeout(hideTimer);
+  if (e.target.closest('#popover')) return;
+  for (const p of POPS) {
+    const a = e.target.closest(p.sel);
+    if (!a) continue;
+    if (popFor === a) return;
+    clearTimeout(popTimer);
+    popTimer = setTimeout(() => { const c = p.make(a); if (c) showPop(a, c); }, 220);
+    return;
+  }
+  clearTimeout(popTimer);
+  if (popFor) hideTimer = setTimeout(hidePop, 180);
+});
+addEventListener('keydown', e => { if (e.key === 'Escape') hidePop(); });
+addEventListener('scroll', () => { if (popFor && !pop.matches(':hover')) hidePop(); }, { passive: true });
+
+// ================= 1. peek, don't jump =================
+function peekCard(id) {
+  const s = P[id], card = el('div', 'pcard');
+  card.appendChild(el('div', 'phead', `<span class="pkind">${s.kind}</span><b>${esc(s.name)}</b><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.file)}:${s.line}</a>`));
+  const body = el('div', 'hbody'), list = el('div', 'rows single');
+  s.rows.forEach(r => list.appendChild(richRow(r, s.isNew, new Set())));
   body.appendChild(list);
-  box.append(head(w), body);
-  return box;
+  card.appendChild(body);
+  if (s.more) card.appendChild(el('div', 'pmore', `… ${s.more} more lines`));
+  if (s.kind === 'func') {
+    card.appendChild(el('div', 'psub', s.calls.length ? `Called from ${s.calls.length} changed line${s.calls.length === 1 ? '' : 's'}` : 'Not called from any changed line'));
+    s.calls.forEach(c => {
+      const a = el('a', 'pcall', `<span class="ploc">${esc(baseName(c.file))}:${c.line}</span><span>${c.h}</span>`);
+      a.href = c.url;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      card.appendChild(a);
+    });
+    if (s.otherCalls) card.appendChild(el('div', 'psub', `and ${s.otherCalls} unchanged call site${s.otherCalls === 1 ? '' : 's'}`));
+  }
+  return card;
 }
-const panel = children => { const p = el('div', 'rcode gap-panel'); children.forEach(c => c && p.appendChild(c)); return p; };
+// Clicking a symbol pins its peek in the dock; clicking it again, or ×, unpins it.
+function pin(id) {
+  const open = $$('.pcard', dock).find(c => c.dataset.id === id);
+  if (open) { open.remove(); return; }
+  const card = peekCard(id), x = el('button', 'px', '×');
+  card.dataset.id = id;
+  x.title = 'unpin';
+  x.onclick = () => card.remove();
+  $('.phead', card).appendChild(x);
+  dock.prepend(card);
+  hidePop();
+}
+// Capture, so a click on a symbol inside an open error fold pins it instead of folding the block.
+document.addEventListener('click', e => {
+  const m = e.target.closest('.peek-on mark.peek');
+  if (!m || !P[m.dataset.ref]) return;
+  e.stopPropagation();
+  e.preventDefault();
+  pin(m.dataset.ref);
+}, true);
+
+// ================= 2 and 3. the call flow as a table of contents =================
+// A name two changed packages share (three mains, say) gets its package in front.
+const shared = new Set(FLOW.map(n => n.name).filter((name, i, all) => all.indexOf(name) !== i));
+const fname = n => {
+  const pkg = shared.has(n.name) ? `<small>${esc(baseName(n.file.slice(0, n.file.lastIndexOf('/'))) || '.')}.</small>` : '';
+  const i = n.name.indexOf('.');
+  return pkg + (i < 0 ? esc(n.name) : `<small>${esc(n.name.slice(0, i))}.</small>${esc(n.name.slice(i + 1))}`);
+};
+const fref = id => `<a data-go="${esc(id)}" data-fpeek="${esc(id)}">${fname(FN[id])}</a>`;
+const dfsOrder = FLOW.map(n => n.id);
+const fileOrder = dfsOrder.slice().sort((a, b) => FN[a].file.localeCompare(FN[b].file) || FN[a].line - FN[b].line);
+function flowCard(id) {
+  const n = FN[id], w = n.window, card = el('div', 'pcard'), shown = 18;
+  card.appendChild(el('div', 'phead', `<span class="pkind">func</span><b>${esc(n.name)}</b><span class="ploc">${esc(n.file)}:${n.line}</span>`));
+  const body = el('div', 'hbody'), list = el('div', 'rows' + (w.rows.every(r => r.o == null) ? ' single' : ''));
+  w.rows.slice(0, shown).forEach(r => list.appendChild(rowEl(r, w.isNew)));
+  body.appendChild(list);
+  card.appendChild(body);
+  if (w.rows.length > shown) card.appendChild(el('div', 'pmore', `… ${w.rows.length - shown} more lines; click to go there`));
+  return card;
+}
+function flowPanels(order, related) {
+  const root = el('div', 'fpanels');
+  order.forEach(id => {
+    const n = FN[id], box = readHunk(n.window, null, null);
+    $('.hhead', box).prepend(el('b', 'fname', fname(n)));
+    if (related) {
+      const rel = (n.callers.length ? `called by ${n.callers.map(fref).join('')}` : 'not called by other changed code') +
+        (n.calls.length ? ` · calls ${n.calls.map(fref).join('')}` : '');
+      box.insertBefore(el('div', 'frel', rel), box.children[1]);
+    }
+    const p = panelOf([box]);
+    p.dataset.fid = id;
+    root.appendChild(p);
+  });
+  return root;
+}
+// "You are here": the function whose panel has crossed a line a third of the way down the window.
+const trackers = [];
+addEventListener('scroll', () => trackers.forEach(f => f()), { passive: true });
+function trackHere(view, items, onHere) {
+  const update = () => {
+    if (!view.offsetParent) return;
+    const line = innerHeight * .33;
+    let here = null;
+    $$('.fpanels > .rcode', view).forEach(p => { if (p.getBoundingClientRect().top < line) here = p.dataset.fid; });
+    here ??= dfsOrder[0];
+    Object.entries(items).forEach(([id, x]) => x.classList.toggle('here', id === here));
+    onHere?.(items[here]);
+  };
+  trackers.push(update);
+  requestAnimationFrame(update);
+}
+function goTo(view, id, offset) {
+  const p = $$('.fpanels > .rcode', view).find(x => x.dataset.fid === id);
+  if (p) scrollTo({ top: scrollY + p.getBoundingClientRect().top - offset(), behavior: 'smooth' });
+}
+function flowStrip() {
+  const root = el('div'), strip = el('div', 'fstrip'), inner = el('div', 'fs-in'), chips = {};
+  inner.style.gridTemplateColumns = `repeat(${dfsOrder.length}, max-content)`;
+  dfsOrder.forEach((id, i) => {
+    const n = FN[id], c = el('a', 'fchip', fname(n));
+    c.style.gridColumn = i + 1;
+    c.style.gridRow = n.depth + 1;
+    c.dataset.go = id;
+    c.dataset.fpeek = id;
+    inner.appendChild(c);
+    chips[id] = c;
+  });
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  inner.prepend(svg);
+  // Caller to callee: down from the caller, then across. A call back to a function already placed is dashed.
+  new ResizeObserver(() => {
+    if (!inner.offsetWidth) return;
+    svg.setAttribute('width', inner.scrollWidth);
+    svg.setAttribute('height', inner.scrollHeight);
+    svg.innerHTML = dfsOrder.flatMap(id => FN[id].calls.map(cid => {
+      const a = chips[id], b = chips[cid], x1 = a.offsetLeft + 12, y1 = a.offsetTop + a.offsetHeight, y2 = b.offsetTop + b.offsetHeight / 2;
+      const back = b.offsetLeft < a.offsetLeft, x2 = back ? b.offsetLeft + b.offsetWidth : b.offsetLeft;
+      return `<path d="M${x1},${y1} V${y2} H${x2}" fill="none" stroke="#3d465c" stroke-width="1.2"${back ? ' stroke-dasharray="3 3"' : ''}/>`;
+    })).join('');
+  }).observe(inner);
+  strip.appendChild(inner);
+  const panels = flowPanels(dfsOrder, true);
+  root.append(strip, panels);
+  const offset = () => $('#rbar').offsetHeight + strip.offsetHeight + 12;
+  root.addEventListener('click', e => { const a = e.target.closest('[data-go]'); if (a) { e.preventDefault(); hidePop(); goTo(root, a.dataset.go, offset); } });
+  trackHere(root, chips, chip => {
+    if (!chip) return;
+    const l = chip.offsetLeft, r = l + chip.offsetWidth;
+    if (l < strip.scrollLeft || r > strip.scrollLeft + strip.clientWidth) strip.scrollTo({ left: l - 60, behavior: 'smooth' });
+  });
+  return root;
+}
+function flowRail() {
+  const root = el('div', 'fgrid'), rail = el('div', 'frail'), rows = {};
+  dfsOrder.forEach(id => {
+    const n = FN[id], r = el('a', 'frow', `${n.depth ? '<span class="tw">↳ </span>' : ''}${fname(n)}`);
+    r.style.paddingLeft = 10 + 14 * n.depth + 'px';
+    r.dataset.go = id;
+    r.dataset.fpeek = id;
+    rail.appendChild(r);
+    rows[id] = r;
+  });
+  root.append(rail, flowPanels(dfsOrder, true));
+  const offset = () => $('#rbar').offsetHeight + 12;
+  root.addEventListener('click', e => { const a = e.target.closest('[data-go]'); if (a) { e.preventDefault(); hidePop(); goTo(root, a.dataset.go, offset); } });
+  trackHere(root, rows, row => {
+    if (!row) return;
+    if (row.offsetTop < rail.scrollTop || row.offsetTop + row.offsetHeight > rail.scrollTop + rail.clientHeight) rail.scrollTo({ top: row.offsetTop - 40, behavior: 'smooth' });
+  });
+  return root;
+}
+
+// ================= 4. graphics that follow the scroll =================
+// Lights the rows of one copy of a scene only; read mode's hotRows lights every copy on the page.
+function hotIn(sec, si, rows, on) {
+  (rows || []).forEach(([h, r]) => {
+    const k = `${si}:${h}:${r}`;
+    $$(`[data-key="${k}"], [data-hk~="${k}"]`, sec).forEach(x => x.classList.toggle('hot', on));
+  });
+}
+const scrollers = [];
+addEventListener('scroll', () => scrollers.forEach(f => f()), { passive: true });
+function scrollyScene(s, si) {
+  const sec = scene(s, si), col = $('.rsteps', sec);
+  if (!col) return sec;
+  col.classList.add('scrolly');
+  $$('.w', col).forEach(w => w.remove());
+  const stage = el('div', 'stage'), steps = $$('.rstep', col), built = {};
+  col.prepend(stage);
+  // Each cue's rows: its own focus, else the focus before it, as in the tour.
+  let last = [];
+  const cueRows = s.cues.map(c => {
+    const f = s.actions.filter(a => a.cue === c.i && a.type === 'focus').flatMap(a => a.rows);
+    if (f.length) last = f;
+    return last;
+  });
+  // The widget on stage at a cue: the last one shown so far, at the furthest step it has reached.
+  const stageAt = ci => {
+    const acts = s.actions.filter(a => a.type === 'widget' && a.cue <= ci);
+    if (!acts.length) return null;
+    const name = acts.at(-1).name;
+    return { name, step: Math.max(...acts.filter(a => a.name === name).map(a => a.step)) };
+  };
+  let active = -1;
+  const activate = ci => {
+    if (ci === active) return;
+    if (active >= 0) hotIn(sec, si, cueRows[active], false);
+    active = ci;
+    steps.forEach((st, i) => st.classList.toggle('active', i === ci));
+    hotIn(sec, si, cueRows[ci], true);
+    const w = stageAt(ci);
+    if (!w) { stage.replaceChildren(); return; }
+    const e = built[w.name] ||= W[s.widgets[w.name].kind](s.widgets[w.name]);
+    $$('[data-step]', e).forEach(c => c.classList.toggle('later', +c.dataset.step > w.step));
+    $$('[data-hl]', e).forEach(c => c.classList.toggle('lit', +c.dataset.hl === w.step));
+    if (stage.firstChild !== e) stage.replaceChildren(e);
+  };
+  // The active cue is the last one whose first shown row has passed a line 45% of the way down the window.
+  const update = () => {
+    const box = sec.getBoundingClientRect();
+    if (!sec.offsetParent || box.bottom < 0 || box.top > innerHeight) return;
+    const line = innerHeight * .45;
+    let ci = 0;
+    cueRows.forEach((rows, i) => {
+      const first = rows.map(([h, r]) => `${si}:${h}:${r}`)
+        .flatMap(k => $$(`[data-key="${k}"], [data-hk~="${k}"]`, sec)).find(x => x.offsetParent);
+      if (first && first.getBoundingClientRect().top < line) ci = i;
+    });
+    activate(ci);
+  };
+  scrollers.push(update);
+  requestAnimationFrame(update);
+  return sec;
+}
+
+// ================= 5. graphics inside the code =================
+// Each widget sits in the code column, right after the last row the narration was on when the widget first appeared.
+function inlineScene(s, si) {
+  const sec = scene(s, si);
+  $$('.rsteps .w', sec).forEach(w => w.remove());
+  const first = {};
+  s.actions.forEach(a => { if (a.type === 'widget' && !(a.name in first)) first[a.name] = a; });
+  Object.entries(first).forEach(([name, a]) => {
+    const focus = s.actions.filter(x => x.type === 'focus' && x.t <= a.t).at(-1);
+    const anchor = (focus?.rows || []).map(([h, r]) => $(`[data-key="${si}:${h}:${r}"]`, sec)).filter(Boolean).at(-1);
+    const box = el('div', 'inlw');
+    box.appendChild(el('div', 'cap', `↑ ${esc(s.cues[a.cue].text.split(/(?<=[.?!])\s/)[0])}`));
+    box.appendChild(W[s.widgets[name].kind](s.widgets[name]));
+    if (anchor) {
+      box.style.marginLeft = gutterWidth(anchor.closest('.rows')) + 'px';
+      (anchor.parentElement.classList.contains('hpopen') ? anchor.parentElement : anchor).after(box);
+    } else {
+      $('.rcode', sec)?.prepend(box);
+    }
+  });
+  return sec;
+}
 
 // ================= page =================
-// Each experiment: { id, title, why, exp: () => element, today: () => element, n: () => how many places it applies }.
-const EXPS = [];
+const EXPS = [
+  { id: 'peek', title: 'Peek, don\'t jump', n: () => codeScenes.length,
+    exp: () => { const r = scenes(codeScenes, scene); r.classList.add('peek-on'); return r; },
+    today: () => scenes(codeScenes, scene),
+    why: 'Calls and type names that resolve into the PR\'s own packages are dotted. Hover one to see its declaration and, for a function, the changed lines that call it. Click it to pin that card at the right, and click it again (or ×) to unpin. Cards have their own dotted names, so you can keep going. <b>Look for:</b> can you follow what a call does without leaving the line you\'re on?' },
+  { id: 'flow-h', title: 'Call flow: a strip across the top', n: () => FLOW.length,
+    exp: flowStrip, today: () => flowPanels(fileOrder, false),
+    why: 'Every function the PR changes, in call order: depth-first from the ones no other changed function calls. The strip stays at the top, with depth going down and reading order going across; dashed lines are calls back to a function already placed. The function you are reading is outlined. Hover a name to peek at its code, click to go there. Each function shows whole, with no gaps, plus what calls it and what it calls. Today is the same functions in file order, as GitHub shows them. <b>Look for:</b> does call order beat file order, and does the strip help or crowd?' },
+  { id: 'flow-v', title: 'Call flow: a rail down the side', n: () => FLOW.length,
+    exp: flowRail, today: () => flowPanels(fileOrder, false),
+    why: 'The same call order as a tree in a rail beside the code, indented by depth, with the function you are reading highlighted. Hover to peek, click to go. <b>Look for:</b> compare it with the strip above: which keeps you oriented better, horizontal or vertical?' },
+  { id: 'scrolly', title: 'Graphics that follow your scroll', n: () => codeScenes.length,
+    exp: () => scenes(codeScenes, scrollyScene), today: () => scenes(codeScenes, scene),
+    why: 'Read mode as a scroll-driven tour. The narration step whose code is at the middle of the window lights up, along with its rows, and the others fade to two lines. The scene\'s graphic stays pinned at the top of the column and reveals step by step as you scroll, the way it does in the video. <b>Look for:</b> does this make the graphics worth having in read mode, and should read mode stay this close to the video?' },
+  { id: 'inline', title: 'Graphics inside the code', n: () => widgetScenes.length,
+    exp: () => scenes(widgetScenes, inlineScene), today: () => scenes(widgetScenes, scene),
+    why: 'Each graphic is placed in the code column, right under the lines the narration was on when it first appeared, fully revealed and wider than the side column allows. The first sentence of its step sits above it. <b>Look for:</b> do graphics read better next to the code they explain than in the side column?' },
+];
 const KEY = `lab-verdicts:${META.github}#${META.pr}:round5`;
 // Sandboxed iframes (bb's inline viewer) throw on any localStorage access; verdicts then last only for the visit.
 const store = (() => { try { localStorage.getItem(KEY); return localStorage; } catch { return null; } })();
@@ -79,29 +416,34 @@ function saveVerdicts() {
   const ta = $('#verdicts textarea');
   if (ta) ta.value = EXPS.map(x => `${x.title}: ${verdicts[x.id]?.v || '(no verdict)'}${verdicts[x.id]?.note ? ' — ' + verdicts[x.id].note : ''}`).join('\n');
 }
-
+// Today views are built the first time they're shown.
 function section(x, i, view) {
   const sec = el('section', 'rsec lsec');
   sec.id = 'x-' + x.id;
   sec.dataset.view = view;
   const h = el('div', 'rhead', `<span class="kicker">Experiment ${i + 1}</span><h2>${esc(x.title)}</h2>`);
-  const seg = el('div', 'seg');
+  const seg = el('div', 'seg'), views = { exp: el('div', 'view exp'), today: el('div', 'view today') };
+  const show = v => {
+    if (!views[v].firstChild && x.n()) views[v].appendChild(x[v]());
+    sec.dataset.view = v;
+    $$('button', seg).forEach(o => o.classList.toggle('on', o.dataset.v === v));
+    scrollers.forEach(f => f());
+    trackers.forEach(f => f());
+  };
   [['today', 'Today'], ['exp', 'Experiment']].forEach(([v, label]) => {
-    const b = el('button', v === view ? 'on' : '', label);
-    b.onclick = () => { sec.dataset.view = v; $$('button', seg).forEach(o => o.classList.toggle('on', o === b)); };
+    const b = el('button', '', label);
+    b.dataset.v = v;
+    b.onclick = () => show(v);
     seg.appendChild(b);
   });
   h.appendChild(seg);
-  sec.appendChild(h);
-  sec.appendChild(el('p', 'why', x.why));
+  sec.append(h, el('p', 'why', x.why));
   if (!x.n()) {
     sec.appendChild(el('p', 'note-line', 'Nothing in this PR to try it on.'));
     return sec;
   }
-  const exp = el('div', 'view exp'), today = el('div', 'view today');
-  exp.appendChild(x.exp());
-  today.appendChild(x.today());
-  sec.append(exp, today);
+  sec.append(views.exp, views.today);
+  show(view);
   const v = el('div', 'verdict', 'Verdict');
   const note = el('input');
   note.placeholder = 'why, or what to change';
@@ -122,23 +464,26 @@ function section(x, i, view) {
   return sec;
 }
 
-const q = new URLSearchParams(location.search);
-const only = q.get('only'), startView = q.get('view') === 'today' ? 'today' : 'exp';
-document.title = `Diff experiments · ${META.title}`;
-$('#rtitle').innerHTML = `Diff experiments<small>${esc(META.kicker)} · ${esc(META.title)}</small>`;
-const body = $('#rbody');
-if (!only) body.appendChild(el('p', 'lab-intro', EXPS.length
-  ? 'Flip <b>Today</b> and <b>Experiment</b> to compare, then leave a verdict; verdicts collect at the bottom to paste back.'
-  : 'No experiments in this round. Kept ones live in the walkthrough\'s read mode.'));
-EXPS.forEach((x, i) => { if (!only || only === x.id) body.appendChild(section(x, i, startView)); });
-if (!only && EXPS.length) {
-  const sec = el('section', 'rsec', '<div class="rhead"><span class="kicker">Verdicts</span><h2>To paste back</h2></div>');
-  sec.id = 'verdicts';
-  sec.appendChild(el('textarea'));
-  $('textarea', sec).readOnly = true;
-  body.appendChild(sec);
-}
-saveVerdicts();
+window.labRead = () => {
+  setMode('read');
+  $('#read').append(pop, dock);
+  document.title = `Read-mode experiments · ${META.title}`;
+  $('#rtitle').innerHTML = `Read-mode experiments<small>${linkify(esc(META.kicker))} · ${esc(META.title)}</small>`;
+  const toc = el('div', 'toc');
+  toc.id = 'toc';
+  $('#rbar').insertBefore(toc, $('#playTour'));
+  const q =new URLSearchParams(location.search), only = q.get('only'), view = q.get('view') === 'today' ? 'today' : 'exp';
+  const body = $('#rbody');
+  if (!only) body.appendChild(el('p', 'lab-intro', 'Round 5: five ideas tried on this PR\'s own read mode. The renderings you kept are already in it. Flip <b>Today</b> and <b>Experiment</b> to compare, then leave a verdict; verdicts collect at the bottom to paste back.'));
+  EXPS.forEach((x, i) => { if (!only || only === x.id) body.appendChild(section(x, i, view)); });
+  if (!only) {
+    const sec = el('section', 'rsec', '<div class="rhead"><span class="kicker">Verdicts</span><h2>To paste back</h2></div>');
+    sec.id = 'verdicts';
+    sec.appendChild(el('textarea'));
+    $('textarea', sec).readOnly = true;
+    body.appendChild(sec);
+  }
+  saveVerdicts();
+  setBarHeight();
+};
 </script>
-</body>
-</html>
