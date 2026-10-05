@@ -22,7 +22,7 @@ from concurrent.futures import ThreadPoolExecutor
 import yaml
 
 import views
-from highlight import char_ranges, render, tokens_by_line
+from highlight import char_ranges, join_ranges, render, tokens_by_line
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE = os.path.join(os.path.dirname(HERE), "assets", "template.html")
@@ -164,7 +164,7 @@ class FileDiff:
         tokens = toks[line - 1] if line and line - 1 < len(toks) else []
         if "".join(t for _, t in tokens) != r["text"]:
             tokens = [("", r["text"])]
-        marks = char_ranges(r["text"], r.get("marks") or [])
+        marks = join_ranges(r["text"], char_ranges(r["text"], r.get("marks") or []))
         return {"k": r["k"], "o": r["o"], "n": r["n"], "h": render(tokens, marks, "x-del" if old else "x-ins", views.link_layers(r["text"], links))}
 
     def window(self, rows, struct_rows):
