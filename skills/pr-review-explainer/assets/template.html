@@ -529,6 +529,8 @@ function kfReplay(w) {
     const t0 = f[0][0], dur = Math.max(f.at(-1)[0] - t0, .001);
     const a = c.animate(f.map(([t, css]) => ({ easing: EASE, ...css, offset: (t - t0) / dur })), { duration: dur * 1000, delay: t0 * 1000, fill: 'both' });
     a.finish();
+    // Firefox removes finished filling animations as replaced, which would leave the button nothing to replay.
+    a.persist();
     return a;
   };
   const anims = [
