@@ -18,6 +18,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import threading
 from concurrent.futures import ThreadPoolExecutor
 
 import yaml
@@ -49,19 +50,43 @@ class Repo:
         self.base = git(path, "merge-base", base, "HEAD").strip()
         self.branch = git(path, "rev-parse", "--abbrev-ref", "HEAD").strip()
         self.base_name = base
-        self._files = {}
+        self._files, self._blobs, self._numstat = {}, {}, None
+        # One process serves every file read. A build reads a few hundred files, and a process per read is most of its time.
+        self._cat = subprocess.Popen(["git", "-C", path, "cat-file", "--batch"], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        self._cat_lock = threading.Lock()
 
     def show(self, rev, path):
-        r = subprocess.run(["git", "-C", self.path, "show", f"{rev}:{path}"], capture_output=True, text=True)
-        return r.stdout if r.returncode == 0 else None
+        """A file's text at rev, or None when it doesn't exist there."""
+        key = f"{rev}:{path}"
+        with self._cat_lock:
+            if key not in self._blobs:
+                self._cat.stdin.write(key.encode() + b"\n")
+                self._cat.stdin.flush()
+                header, text = self._cat.stdout.readline().rstrip(b"\n"), None
+                if not header.endswith((b" missing", b" ambiguous")):
+                    _, kind, size = header.split(b" ")
+                    data = self._cat.stdout.read(int(size) + 1)[:-1]
+                    if kind == b"blob":
+                        # As `git show` read in text mode returned it, with universal newlines.
+                        text = data.decode(errors="replace").replace("\r\n", "\n").replace("\r", "\n")
+                self._blobs[key] = text
+            return self._blobs[key]
 
     def numstat(self):
-        rows = []
-        for line in git(self.path, "diff", "--numstat", self.base, self.head).strip().splitlines():
-            a, d, p = line.split("\t")
-            if a != "-":
-                rows.append({"a": int(a), "d": int(d), "path": p})
-        return rows
+        if self._numstat is None:
+            self._numstat = []
+            for line in git(self.path, "diff", "--numstat", self.base, self.head).strip().splitlines():
+                a, d, p = line.split("\t")
+                if a != "-":
+                    self._numstat.append({"a": int(a), "d": int(d), "path": p})
+        return self._numstat
+
+    def prefetch(self):
+        """Builds every changed file's diff at once, since each waits on its own `git diff` and difftastic run."""
+        todo = [s["path"] for s in self.numstat() if s["path"] not in self._files]
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            for path, fd in zip(todo, pool.map(lambda p: FileDiff(self, p), todo)):
+                self._files[path] = fd
 
     def file(self, path):
         if path not in self._files:
@@ -331,6 +356,7 @@ class Builder:
         if not os.path.isabs(repo_path):
             repo_path = os.path.join(spec_dir, repo_path)
         self.repo = Repo(repo_path, spec.get("base", "origin/main"), spec["github"])
+        self.repo.prefetch()
         self.views = views.Views(self.repo)
         self.voice = None
         if not silent:

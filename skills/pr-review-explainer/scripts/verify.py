@@ -7,13 +7,16 @@ and stitch them into contact sheets. Almost every visual bug shows up in these f
 
     uv run verify.py path/to/pr123-walkthrough.html [--out DIR] [--only 3]   # --only: one scene index
 
-Headless Chrome must run outside the sandbox.
+Headless Chrome must run outside the sandbox. It uses chrome-headless-shell when installed
+(`npx @puppeteer/browsers install chrome-headless-shell@stable`), else Google Chrome, or $CHROME.
 """
 
 import argparse
+import glob
 import json
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import time
@@ -21,7 +24,23 @@ from concurrent.futures import ThreadPoolExecutor
 
 from PIL import Image, ImageDraw, ImageFont
 
-CHROME = os.environ.get("CHROME", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+# Google Chrome puts an icon in the macOS Dock for every headless instance, one per screenshot; the shell has none.
+SHELLS = ["~/.cache/puppeteer/chrome-headless-shell/*/chrome-headless-shell-*/chrome-headless-shell",
+          "~/Library/Caches/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-*/chrome-headless-shell",
+          "~/.cache/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-*/chrome-headless-shell"]
+
+
+def find_chrome():
+    if os.environ.get("CHROME"):
+        return os.environ["CHROME"]
+    if found := shutil.which("chrome-headless-shell"):
+        return found
+    shells = [p for pattern in SHELLS for p in glob.glob(os.path.expanduser(pattern))]
+    return max(shells, key=os.path.getmtime) if shells else "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+
+
+CHROME = find_chrome()
+HEADLESS = [] if os.path.basename(CHROME) == "chrome-headless-shell" else ["--headless=new"]
 # A fresh profile otherwise spends most of a minute on first-run, updater and sync work before it exits.
 QUIET = ["--no-first-run", "--no-default-browser-check", "--disable-background-networking", "--disable-component-update",
          "--disable-sync", "--disable-extensions", "--disable-default-apps", "--metrics-recording-only", "--mute-audio",
@@ -32,7 +51,7 @@ def shoot(url, png, size):
     if os.path.exists(png):
         os.remove(png)
     with tempfile.TemporaryDirectory() as profile:
-        p = subprocess.Popen([CHROME, "--headless=new", "--disable-gpu", "--hide-scrollbars", f"--user-data-dir={profile}", *QUIET,
+        p = subprocess.Popen([CHROME, *HEADLESS, "--disable-gpu", "--hide-scrollbars", f"--user-data-dir={profile}", *QUIET,
                               f"--window-size={size[0]},{size[1]}", "--virtual-time-budget=4000", "--enable-logging=stderr", "--v=0",
                               f"--screenshot={png}", url], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
         # The player's requestAnimationFrame loop keeps headless Chrome alive after it writes the screenshot.
