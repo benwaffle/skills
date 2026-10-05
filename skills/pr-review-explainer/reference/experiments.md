@@ -135,3 +135,4 @@ Both rounds play at the same words per minute, and switching voices mid-line pic
 
   Try every rendering on a modification-heavy PR before it moves into read mode.
 - WebM written to a pipe has no duration (`audio.duration` is Infinity, so seeking breaks). Have ffmpeg write a file.
+- Difftastic counts whitespace inside a string as a change, so struct tags realigned around a new field showed as edited lines. In Go files, build.py treats a line pair whose only changes are struct tags with the same `key:"value"` pairs as alignment (`~`).

@@ -79,6 +79,38 @@ class Repo:
 
 # ---------------- diff model ----------------
 
+TAG_PAIR = re.compile(r'(\w+):"((?:[^"\\]|\\.)*)"')
+
+
+def raw_strings(line):
+    """The byte spans of a line's backquoted strings, quotes included."""
+    ticks = [i for i, c in enumerate(line.encode()) if c == 0x60]
+    return [(ticks[i], ticks[i + 1] + 1) for i in range(0, len(ticks) - 1, 2)]
+
+
+def tag_pairs(s):
+    """A backquoted string's struct tag pairs, or None when it holds anything but key:"value" pairs and spaces."""
+    body = s[1:-1]
+    return None if TAG_PAIR.sub("", body).strip(" ") else TAG_PAIR.findall(body)
+
+
+def same_tags(old_line, new_line, old_changes, new_changes):
+    """Whether every change difftastic found in a pair of Go lines is inside a struct tag that keeps its key:"value"
+    pairs. Difftastic counts any change inside a string, but reflect.StructTag skips the spaces between pairs, so
+    realigning tags changes nothing."""
+    old_spans, new_spans = raw_strings(old_line), raw_strings(new_line)
+    if not old_spans or len(old_spans) != len(new_spans):
+        return False
+    for spans, changes in ((old_spans, old_changes), (new_spans, new_changes)):
+        if not all(any(a <= s and e <= b for a, b in spans) for s, e in changes):
+            return False
+    for (a1, b1), (a2, b2) in zip(old_spans, new_spans):
+        t1, t2 = old_line.encode()[a1:b1].decode(), new_line.encode()[a2:b2].decode()
+        if t1 != t2 and (tag_pairs(t1) is None or tag_pairs(t1) != tag_pairs(t2)):
+            return False
+    return True
+
+
 class FileDiff:
     def __init__(self, repo, path):
         self.repo, self.path = repo, path
@@ -130,6 +162,12 @@ class FileDiff:
                 if right:
                     rhs[right["line_number"] + 1] = {"changes": [(c["start"], c["end"]) for c in right["changes"]],
                                                      "pair": left["line_number"] + 1 if left else None}
+        if self.path.endswith(".go"):
+            old_lines, new_lines = old.split("\n"), new.split("\n")
+            for n, info in list(rhs.items()):
+                o = info["pair"]
+                if o in lhs and lhs[o]["pair"] == n and same_tags(old_lines[o - 1], new_lines[n - 1], lhs[o]["changes"], info["changes"]):
+                    del lhs[o], rhs[n]
         return lhs, rhs
 
     def structural(self, rows):
