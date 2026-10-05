@@ -188,13 +188,15 @@
   #silent { position: absolute; right: 56px; top: 34px; font-size: 11px; color: var(--amber); border: 1px solid var(--amber); border-radius: 5px; padding: 1px 6px; }
 
   /* ================= read (scrolling document) ================= */
+  /* --barh and --navh are the heights of the sticky title bar and section nav, set from script */
+  :root { --top: calc(var(--barh, 52px) + var(--navh, 0px)); }
   #read { max-width: 1320px; margin: 0 auto; padding: 0 28px 120px; font-size: 15px; }
   #rbar { position: sticky; top: 0; z-index: 10; background: rgba(15,17,22,.94); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line);
     margin: 0 -28px; padding: 10px 28px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   #rbar .ttl { font-weight: 650; margin-right: auto; font-size: 15px; }
   #rbar .ttl small { color: var(--dim); font-weight: 400; margin-left: 8px; }
   #read h2 { font-size: 22px; margin: 0; letter-spacing: -.2px; }
-  .rsec { padding: 30px 0 8px; border-bottom: 1px solid var(--line); scroll-margin-top: 50px; }
+  .rsec { padding: 30px 0 8px; border-bottom: 1px solid var(--line); scroll-margin-top: var(--top); }
   #read .row.rfold { cursor: pointer; color: var(--dim); font-family: -apple-system, sans-serif; font-size: 12px; }
   #read .row.rfold:hover { color: var(--blue); }
   #read .rfolded { display: none; }
@@ -207,7 +209,7 @@
   .rgrid.solo { grid-template-columns: minmax(0, 1fr); }
   .rcode { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
   #read .row { height: auto; }
-  .rsteps { display: flex; flex-direction: column; gap: 10px; position: sticky; top: 64px; }
+  .rsteps { display: flex; flex-direction: column; gap: 10px; position: sticky; top: calc(var(--top) + 12px); }
   .rstep { border-left: 2px solid var(--line); padding: 2px 0 2px 12px; display: flex; flex-direction: column; gap: 8px; }
   .rstep .say { color: #c5cad6; font-size: 14px; line-height: 1.5; }
   .rstep:hover { border-left-color: var(--blue); }
@@ -240,9 +242,34 @@
   .phead .px { background: none; border: 0; color: var(--dim); cursor: pointer; font-size: 16px; line-height: 1; padding: 0 2px; }
   .phead .px:hover { color: var(--fg); }
   .pmore { color: var(--dim); font-size: 12px; padding: 6px 12px; }
-  #peekdock { position: fixed; right: 14px; top: calc(var(--barh, 52px) + 10px); bottom: 14px; width: 520px; overflow: auto;
+  #peekdock { position: fixed; right: 14px; top: calc(var(--top) + 10px); bottom: 14px; width: 520px; overflow: auto;
     display: flex; flex-direction: column; gap: 10px; z-index: 40; pointer-events: none; }
   #peekdock > * { pointer-events: auto; flex: none; }
+  .snav { position: sticky; top: var(--barh, 52px); z-index: 9; display: flex; gap: 6px; margin: 0 -28px; padding: 10px 28px 9px;
+    background: rgba(15,17,22,.94); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); }
+  .sseg { flex: 1 1 0; min-width: 0; cursor: pointer; color: var(--dim); font-size: 12.5px; }
+  .sseg:hover { text-decoration: none; color: var(--fg); }
+  .sseg .sl { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 2px 6px; }
+  .sseg .sl b { font: 600 11px var(--mono); color: #4d5466; margin-right: 5px; }
+  .sseg i { display: block; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+  .sseg i u { display: block; height: 100%; width: calc(var(--p, 0) * 100%); background: var(--blue); }
+  .sseg.here { color: var(--fg); }
+  .sseg.here .sl b { color: var(--blue); }
+  .hhead .fname { font: 600 12.5px var(--mono); color: var(--fg); margin-right: 4px; }
+  .fname small, .frow small { color: var(--dim); font-size: inherit; }
+  .frel { padding: 5px 14px; font-size: 12px; color: var(--dim); border-bottom: 1px solid var(--line); background: #171a22; }
+  .frel a { font: 11.5px var(--mono); cursor: pointer; margin: 0 4px; }
+  .fgrid { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 14px; align-items: start; }
+  .fpanels > .rcode { margin-bottom: 12px; }
+  .frail { position: sticky; top: calc(var(--top) + 12px); max-height: calc(100vh - var(--top) - 24px); overflow: auto;
+    border: 1px solid var(--line); border-radius: 10px; padding: 6px 0; background: var(--panel); }
+  .frow { display: block; font: 12px/20px var(--mono); padding: 1px 10px; color: var(--fg); border-left: 2px solid transparent;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  .frow .tw { color: #4d5466; }
+  .frow:hover { text-decoration: none; background: #1b1f2a; }
+  .frow.here { border-left-color: var(--blue); background: #1d2433; color: #fff; }
+  #read .w .wlit { background-color: rgba(110,170,255,.16); box-shadow: 0 0 0 1px rgba(110,170,255,.75); border-radius: 4px; }
+  #read .w-table .c.wlit { border-radius: 5px; }
   .ann { font-family: -apple-system, sans-serif; font-size: 10.5px; margin-left: 14px; }
   .badge { font-family: -apple-system, sans-serif; font-size: 10.5px; border-radius: 4px; padding: 0 5px; margin-right: 4px; }
   .b-opt { background: #3d3220; color: #ffd08a; } .b-list { background: #22324d; color: #9cc4ff; } .b-map { background: #33284a; color: #d3b0ff; }
@@ -1147,49 +1174,209 @@ function readSection(scene, si) {
   sec.appendChild(g);
   return sec;
 }
+// Each cue's rows: its own focus, else the focus before it, as in the tour.
+function rowsByCue(scene) {
+  let last = [];
+  return scene.cues.map(c => {
+    const f = scene.actions.filter(a => a.cue === c.i && a.type === 'focus').flatMap(a => a.rows);
+    if (f.length) last = f;
+    return last;
+  });
+}
+// Hovering a part of a graphic (a sequence's row, a table's row, a flow node, a snippet line) lights the code it stands
+// for: the part's own `code` in the spec, else the focus of the cue that brought its step in.
+const PARTS = '.w-seq > [data-row], .w-table .c, .w-flow .fnode, .w-snippet > span';
+const partStep = x => +(x.dataset.hl ?? x.closest('[data-step]')?.dataset.step ?? 0);
+function linkWidget(e, scene, si, name, stepRows, cueRows) {
+  // Over the graphic, only the hovered part's rows light, not the whole step's.
+  e.onmouseenter = () => hotRows(si, stepRows, false);
+  e.onmouseleave = () => hotRows(si, stepRows, true);
+  const w = scene.widgets[name], list = w.rows || w.nodes || w.lines || [];
+  $$(PARTS, e).forEach(x => {
+    const own = list[+x.dataset.row]?.code;
+    const a = own ? null : scene.actions.find(a => a.type === 'widget' && a.name === name && a.step >= partStep(x));
+    const rows = own || (a ? cueRows[a.cue] : []);
+    const group = x.matches('.w-table .c') ? $$(`.c[data-row="${x.dataset.row}"]`, e) : [x];
+    x.onmouseenter = () => { group.forEach(p => p.classList.add('wlit')); hotRows(si, rows, true); };
+    x.onmouseleave = () => { group.forEach(p => p.classList.remove('wlit')); hotRows(si, rows, false); };
+  });
+}
 // One block per narrated cue: the caption, then any note or widget it introduces. Hovering lights its rows.
 function stepsFor(scene, si) {
   const col = el('div', 'rsteps');
-  const seen = new Set();
+  const seen = new Set(), cueRows = rowsByCue(scene);
   scene.cues.forEach(c => {
     const step = el('div', 'rstep');
     step.appendChild(el('div', 'say', md(c.text)));
-    const acts = scene.actions.filter(a => a.cue === c.i);
+    const acts = scene.actions.filter(a => a.cue === c.i), made = [];
     let rows = [];
     for (const a of acts) {
       if (a.type === 'focus') rows = rows.concat(a.rows);
       if (a.type === 'note') { const n = noteEl(a); n.onmouseenter = () => hotRows(si, a.rows, true); n.onmouseleave = () => hotRows(si, a.rows, false); step.appendChild(n); }
-      if (a.type === 'widget' && !seen.has(a.name)) { seen.add(a.name); step.appendChild(W[scene.widgets[a.name].kind](scene.widgets[a.name])); }
+      if (a.type === 'widget' && !seen.has(a.name)) {
+        seen.add(a.name);
+        const w = W[scene.widgets[a.name].kind](scene.widgets[a.name]);
+        made.push([w, a.name]);
+        step.appendChild(w);
+      }
     }
+    made.forEach(([w, name]) => linkWidget(w, scene, si, name, rows, cueRows));
     step.onmouseenter = () => hotRows(si, rows, true);
     step.onmouseleave = () => hotRows(si, rows, false);
     col.appendChild(step);
   });
   return col;
 }
+const onScroll = [];
+addEventListener('scroll', () => onScroll.forEach(f => f()), { passive: true });
+const watch = f => { onScroll.push(f); requestAnimationFrame(f); };
+const topOffset = () => $('#rbar').offsetHeight + ($('#read .snav')?.offsetHeight || 0);
+function setBarHeights() {
+  document.documentElement.style.setProperty('--barh', $('#rbar').offsetHeight + 'px');
+  document.documentElement.style.setProperty('--navh', ($('#read .snav')?.offsetHeight || 0) + 'px');
+}
+addEventListener('resize', setBarHeights);
+
+// ---------- the changed functions in call order ----------
+const FLOW = DATA.flow || [], FN = Object.fromEntries(FLOW.map(n => [n.id, n]));
+const baseName = p => p.slice(p.lastIndexOf('/') + 1);
+// A name two changed packages share (three mains, say) gets its package in front.
+const sharedNames = new Set(FLOW.map(n => n.name).filter((name, i, all) => all.indexOf(name) !== i));
+const fname = n => {
+  const pkg = sharedNames.has(n.name) ? `<small>${esc(baseName(n.file.slice(0, n.file.lastIndexOf('/'))) || '.')}.</small>` : '';
+  const i = n.name.indexOf('.');
+  return pkg + (i < 0 ? esc(n.name) : `<small>${esc(n.name.slice(0, i))}.</small>${esc(n.name.slice(i + 1))}`);
+};
+const fref = id => `<a data-go="${esc(id)}">${fname(FN[id])}</a>`;
+const dfsOrder = FLOW.map(n => n.id);
+// The tree holds the functions the tour shows and the entry points that reach them. The panels hold every changed
+// function, so the tree marks the nearest of its functions above the panel you are reading.
+const inTree = new Set();
+FLOW.forEach(n => {
+  if (n.scene == null) return;
+  inTree.add(n.id);
+  let r = n;
+  while (r.parent) r = FN[r.parent];
+  inTree.add(r.id);
+});
+const treeAnchor = id => { while (id && !inTree.has(id)) id = FN[id].parent; return id; };
+const treeDepth = id => { let d = 0; for (let p = FN[id].parent; p; p = FN[p].parent) d += inTree.has(p); return d; };
+function flowPanel(id) {
+  const n = FN[id], box = readHunk(n.window, null, null);
+  $('.hhead', box).prepend(el('b', 'fname', fname(n)));
+  const rel = (n.callers.length ? `called by ${n.callers.map(fref).join('')}` : 'not called by other changed code') +
+    (n.calls.length ? ` · calls ${n.calls.map(fref).join('')}` : '');
+  box.insertBefore(el('div', 'frel', rel), box.children[1]);
+  const p = el('div', 'rcode');
+  p.dataset.fid = id;
+  p.appendChild(box);
+  return p;
+}
+function flowSection() {
+  const sec = el('section', 'rsec', '<div class="rhead"><span class="kicker">Call order</span><h2>Every changed function, in the order they call each other</h2></div>');
+  sec.id = 'sec-flow';
+  const grid = el('div', 'fgrid'), rail = el('div', 'frail'), panels = el('div', 'fpanels'), rows = {};
+  dfsOrder.filter(id => inTree.has(id)).forEach(id => {
+    const n = FN[id], d = treeDepth(id), r = el('a', 'frow', `${d ? '<span class="tw">↳ </span>' : ''}${fname(n)}`);
+    r.style.paddingLeft = 10 + 14 * d + 'px';
+    r.dataset.go = id;
+    r.title = n.scene != null ? `${n.name} · in the tour: ${SC[n.scene].chapter}` : `${n.name} · an entry point`;
+    rail.appendChild(r);
+    rows[id] = r;
+  });
+  dfsOrder.forEach(id => panels.appendChild(flowPanel(id)));
+  grid.append(rail, panels);
+  sec.appendChild(grid);
+  grid.addEventListener('click', e => {
+    const a = e.target.closest('[data-go]');
+    if (!a) return;
+    e.preventDefault();
+    const p = $$('.rcode', panels).find(x => x.dataset.fid === a.dataset.go);
+    scrollTo({ top: scrollY + p.getBoundingClientRect().top - topOffset() - 12, behavior: 'smooth' });
+  });
+  // "You are here": the panel that has crossed a line a third of the way down the window.
+  watch(() => {
+    if (!sec.offsetParent) return;
+    let here = dfsOrder[0];
+    $$('.rcode', panels).forEach(p => { if (p.getBoundingClientRect().top < innerHeight * .33) here = p.dataset.fid; });
+    const at = treeAnchor(here), row = rows[at];
+    Object.entries(rows).forEach(([id, r]) => r.classList.toggle('here', id === at));
+    if (row && (row.offsetTop < rail.scrollTop || row.offsetTop + row.offsetHeight > rail.scrollTop + rail.clientHeight))
+      rail.scrollTo({ top: row.offsetTop - 40, behavior: 'smooth' });
+  });
+  return sec;
+}
+
+// ---------- the sections as a nav, like the tour's timeline ----------
+// One segment per section, filling as you read through it. A click, or ← and → in read mode, goes to a section.
+function sectionNav(secs, labels) {
+  const nav = el('nav', 'snav');
+  // A key pressed during a smooth scroll counts from where that scroll is going, not from where it is.
+  let here = 0, going = null;
+  addEventListener('scrollend', () => { going = null; });
+  const go = i => {
+    going = i;
+    scrollTo({ top: scrollY + secs[i].getBoundingClientRect().top - nav.getBoundingClientRect().bottom + 1, behavior: 'smooth' });
+  };
+  const segs = secs.map((sec, i) => {
+    const a = el('a', 'sseg', `<span class="sl"><b>${i + 1}</b>${esc(labels[i])}</span><i><u></u></i>`);
+    a.title = $('h2', sec)?.textContent || labels[i];
+    a.onclick = () => go(i);
+    nav.appendChild(a);
+    return a;
+  });
+  watch(() => {
+    if (!nav.offsetParent) return;
+    const line = nav.getBoundingClientRect().bottom + 40, end = innerHeight + scrollY >= document.documentElement.scrollHeight - 2;
+    here = 0;
+    secs.forEach((sec, i) => {
+      const r = sec.getBoundingClientRect();
+      if (r.top <= line) here = i;
+      segs[i].style.setProperty('--p', end && r.top < innerHeight ? 1 : Math.max(0, Math.min(1, (line - r.top) / r.height)));
+    });
+    segs.forEach((s, i) => s.classList.toggle('here', i === here));
+  });
+  addEventListener('keydown', e => {
+    if (!nav.offsetParent || e.target.closest('input, textarea') || e.metaKey || e.altKey || e.ctrlKey) return;
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    e.preventDefault();
+    if (going != null) go(Math.max(0, Math.min(secs.length - 1, going + (e.key === 'ArrowRight' ? 1 : -1))));
+    else if (e.key === 'ArrowRight') go(Math.min(here + 1, secs.length - 1));
+    else go(secs[here].getBoundingClientRect().top < nav.getBoundingClientRect().bottom - 2 ? here : Math.max(here - 1, 0));
+  });
+  return nav;
+}
+
+function restSection() {
+  const sec = el('section', 'rsec rest', `<div class="rhead"><span class="kicker">Not in the tour</span><h2>The rest of the diff</h2></div>`);
+  sec.id = 'sec-rest';
+  DATA.rest.forEach(f => {
+    const d = el('details');
+    const n = f.uncovered;
+    d.appendChild(el('summary', '', `${esc(f.file)}<span class="cnt">${n} changed line${n === 1 ? '' : 's'} not shown in the tour</span>`));
+    const box = el('div', 'rcode'); f.hunks.forEach(h => box.appendChild(readHunk(h, null, null)));
+    d.appendChild(box);
+    sec.appendChild(d);
+  });
+  return sec;
+}
+// ?only=N, flow or rest renders that one section, for screenshots.
 function buildRead() {
   $('#read').append(pop, dock);
   $('#rtitle').innerHTML = `${esc(META.title)}<small>${linkify(esc(META.kicker))}</small>`;
-  const body = $('#rbody'), only = new URLSearchParams(location.search).get('only');
-  SC.forEach((s, i) => { if (only == null || +only === i) body.appendChild(readSection(s, i)); });
-  if (DATA.rest?.length && (only == null || only === 'rest')) {
-    const sec = el('section', 'rsec rest', `<div class="rhead"><span class="kicker">Not in the tour</span><h2>The rest of the diff</h2></div>`);
-    DATA.rest.forEach(f => {
-      const d = el('details');
-      const n = f.uncovered;
-      d.appendChild(el('summary', '', `${esc(f.file)}<span class="cnt">${n} changed line${n === 1 ? '' : 's'} not shown in the tour</span>`));
-      const box = el('div', 'rcode'); f.hunks.forEach(h => box.appendChild(readHunk(h, null, null)));
-      d.appendChild(box);
-      sec.appendChild(d);
-    });
-    body.appendChild(sec);
-  }
+  const body = $('#rbody'), only = new URLSearchParams(location.search).get('only'), secs = [], labels = [];
+  SC.forEach((s, i) => { if (only == null || +only === i) { secs.push(readSection(s, i)); labels.push(s.chapter); } });
+  if (FLOW.length && (only == null || only === 'flow')) { secs.push(flowSection()); labels.push('Call order'); }
+  if (DATA.rest?.length && (only == null || only === 'rest')) { secs.push(restSection()); labels.push('The rest'); }
+  if (only == null && secs.length > 1) body.appendChild(sectionNav(secs, labels));
+  secs.forEach(s => body.appendChild(s));
 }
 function setMode(mode, sceneIdx) {
   if (mode === 'read' && !audio.paused) audio.pause();
   dismissStart();
   document.body.classList.toggle('mode-read', mode === 'read');
   document.body.classList.toggle('mode-tour', mode === 'tour');
+  if (mode === 'read') setBarHeights();
   if (mode === 'read' && sceneIdx != null) $('#sec-' + sceneIdx)?.scrollIntoView({ block: 'start' });
   if (mode === 'tour') fit();
 }

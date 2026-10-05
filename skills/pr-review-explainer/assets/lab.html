@@ -22,7 +22,6 @@
   .lsec .rsec { padding: 14px 0 6px; }
   .lsec .rsec:last-child { border-bottom: 0; }
   .lsec .rsec h2 { font-size: 18px; }
-  .lsec .rsteps { top: calc(var(--barh, 52px) + 12px); }
   .verdict { display: flex; gap: 8px; align-items: center; margin: 16px 0 6px; font-size: 13px; color: var(--dim); }
   .verdict button { background: var(--panel2); color: var(--dim); border: 1px solid var(--line); border-radius: 8px; padding: 4px 12px; font: inherit; cursor: pointer; }
   .verdict button.on.keep { color: var(--green); border-color: var(--green); }
@@ -32,45 +31,9 @@
   .note-line { color: var(--dim); font-size: 13px; margin: 0 0 10px; }
   .gap-panel { margin-bottom: 12px; }
   #verdicts textarea { width: 100%; max-width: 900px; height: 130px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; color: var(--fg); font: 13px var(--mono); padding: 10px; }
-
-  /* sections in a horizontal nav */
-  .snav { position: sticky; top: var(--barh, 52px); z-index: 7; display: flex; gap: 6px; padding: 10px 0 9px; margin-bottom: 2px;
-    background: rgba(15,17,22,.94); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); }
-  .sseg { flex: 1 1 0; min-width: 0; cursor: pointer; color: var(--dim); font-size: 12.5px; }
-  .sseg:hover { text-decoration: none; color: var(--fg); }
-  .sseg .sl { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 2px 6px; }
-  .sseg .sl b { font: 600 11px var(--mono); color: #4d5466; margin-right: 5px; }
-  .sseg i { display: block; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
-  .sseg i u { display: block; height: 100%; width: calc(var(--p, 0) * 100%); background: var(--blue); }
-  .sseg.here { color: var(--fg); }
-  .sseg.here .sl b { color: var(--blue); }
-
-  /* call flow */
-  .hhead .fname { font: 600 12.5px var(--mono); color: var(--fg); margin-right: 4px; }
-  .fname small, .frow small { color: var(--dim); font-size: inherit; }
-  .frel { padding: 5px 14px; font-size: 12px; color: var(--dim); border-bottom: 1px solid var(--line); background: #171a22; }
-  .frel a { font: 11.5px var(--mono); cursor: pointer; margin: 0 4px; }
-  .fgrid { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 14px; align-items: start; }
-  .frail { position: sticky; top: calc(var(--barh, 52px) + 12px); max-height: calc(100vh - var(--barh, 52px) - 24px); overflow: auto;
-    border: 1px solid var(--line); border-radius: 10px; padding: 6px 0; background: var(--panel); }
-  .frow { display: block; font: 12px/20px var(--mono); padding: 1px 10px; color: var(--fg); border-left: 2px solid transparent;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
-  .frow .tw { color: #4d5466; }
-  .frow:hover { text-decoration: none; background: #1b1f2a; }
-  .frow.here { border-left-color: var(--blue); background: #1d2433; color: #fff; }
-
-  /* scroll drives the steps, and graphics that point at their code */
-  .scrolly .rstep.active { border-left-color: var(--blue); }
-  .scrolly .rstep.active .say { color: var(--fg); }
-  .stage:empty { display: none; }
-  .w .wlit { background-color: rgba(110,170,255,.16); box-shadow: 0 0 0 1px rgba(110,170,255,.75); border-radius: 4px; }
-  .w-table .c.wlit { border-radius: 5px; }
-  .linked .w [data-row], .linked .w .fnode { cursor: default; }
 </style>
 <script>
 const LAB = /*LAB*/null;
-const FLOW = LAB.flow, FN = Object.fromEntries(FLOW.map(n => [n.id, n]));
-const baseName = p => p.slice(p.lastIndexOf('/') + 1);
 const codeScenes = SC.map((s, i) => [s, i]).filter(([s]) => s.kind === 'code');
 const widgetScenes = codeScenes.filter(([s]) => Object.keys(s.widgets || {}).length);
 const panelOf = children => { const p = el('div', 'rcode gap-panel'); children.forEach(c => p.appendChild(c)); return p; };
@@ -81,126 +44,6 @@ function scene(s, si) {
   return sec;
 }
 const scenes = (list, make) => { const r = el('div'); list.forEach(([s, i]) => r.appendChild(make(s, i))); return r; };
-const barHeight = () => $('#rbar').offsetHeight;
-const setBarHeight = () => document.documentElement.style.setProperty('--barh', barHeight() + 'px');
-addEventListener('resize', setBarHeight);
-const onScroll = [];
-addEventListener('scroll', () => onScroll.forEach(f => f()), { passive: true });
-const watch = f => { onScroll.push(f); requestAnimationFrame(f); };
-
-// ================= 1. sections in a horizontal nav =================
-// One segment per section, filling as you read through it. A click, or ← and →, goes to a section.
-function navView() {
-  const root = el('div'), nav = el('nav', 'snav'), secs = SC.map((s, i) => scene(s, i));
-  const segs = SC.map((s, i) => {
-    const a = el('a', 'sseg', `<span class="sl"><b>${i + 1}</b>${esc(s.chapter)}</span><i><u></u></i>`);
-    a.title = s.title;
-    a.onclick = () => go(i);
-    nav.appendChild(a);
-    return a;
-  });
-  root.append(nav, ...secs);
-  // A key pressed during a smooth scroll counts from where that scroll is going, not from where it is.
-  let here = 0, going = null;
-  addEventListener('scrollend', () => { going = null; });
-  const go = i => {
-    going = i;
-    scrollTo({ top: scrollY + secs[i].getBoundingClientRect().top - nav.getBoundingClientRect().bottom + 1, behavior: 'smooth' });
-  };
-  watch(() => {
-    if (!root.offsetParent) return;
-    const line = nav.getBoundingClientRect().bottom + 40, end = innerHeight + scrollY >= document.documentElement.scrollHeight - 2;
-    here = 0;
-    secs.forEach((sec, i) => {
-      const r = sec.getBoundingClientRect();
-      if (r.top <= line) here = i;
-      segs[i].style.setProperty('--p', end && r.top < innerHeight ? 1 : Math.max(0, Math.min(1, (line - r.top) / r.height)));
-    });
-    segs.forEach((s, i) => s.classList.toggle('here', i === here));
-  });
-  addEventListener('keydown', e => {
-    if (!root.offsetParent || e.target.closest('input, textarea') || e.metaKey || e.altKey || e.ctrlKey) return;
-    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-    e.preventDefault();
-    if (going != null) go(Math.max(0, Math.min(secs.length - 1, going + (e.key === 'ArrowRight' ? 1 : -1))));
-    else if (e.key === 'ArrowRight') go(Math.min(here + 1, secs.length - 1));
-    else go(secs[here].getBoundingClientRect().top < nav.getBoundingClientRect().bottom - 2 ? here : Math.max(here - 1, 0));
-  });
-  return root;
-}
-
-// ================= 2. the call flow as a tree =================
-// A name two changed packages share (three mains, say) gets its package in front.
-const shared = new Set(FLOW.map(n => n.name).filter((name, i, all) => all.indexOf(name) !== i));
-const fname = n => {
-  const pkg = shared.has(n.name) ? `<small>${esc(baseName(n.file.slice(0, n.file.lastIndexOf('/'))) || '.')}.</small>` : '';
-  const i = n.name.indexOf('.');
-  return pkg + (i < 0 ? esc(n.name) : `<small>${esc(n.name.slice(0, i))}.</small>${esc(n.name.slice(i + 1))}`);
-};
-const fref = id => `<a data-go="${esc(id)}">${fname(FN[id])}</a>`;
-const dfsOrder = FLOW.map(n => n.id);
-const fileOrder = dfsOrder.slice().sort((a, b) => FN[a].file.localeCompare(FN[b].file) || FN[a].line - FN[b].line);
-// The tree holds the functions the tour shows and the entry points that reach them. The panels hold every changed
-// function, so the tree marks the nearest of its functions above the panel you are reading.
-const inTree = new Set();
-FLOW.forEach(n => {
-  if (n.scene == null) return;
-  inTree.add(n.id);
-  let r = n;
-  while (r.parent) r = FN[r.parent];
-  inTree.add(r.id);
-});
-const treeAnchor = id => { while (id && !inTree.has(id)) id = FN[id].parent; return id; };
-const treeDepth = id => { let d = 0; for (let p = FN[id].parent; p; p = FN[p].parent) d += inTree.has(p); return d; };
-function flowPanels(order, related) {
-  const root = el('div', 'fpanels');
-  order.forEach(id => {
-    const n = FN[id], box = readHunk(n.window, null, null);
-    $('.hhead', box).prepend(el('b', 'fname', fname(n)));
-    if (related) {
-      const rel = (n.callers.length ? `called by ${n.callers.map(fref).join('')}` : 'not called by other changed code') +
-        (n.calls.length ? ` · calls ${n.calls.map(fref).join('')}` : '');
-      box.insertBefore(el('div', 'frel', rel), box.children[1]);
-    }
-    const p = panelOf([box]);
-    p.dataset.fid = id;
-    root.appendChild(p);
-  });
-  return root;
-}
-function flowRail() {
-  const root = el('div', 'fgrid'), rail = el('div', 'frail'), rows = {};
-  dfsOrder.filter(id => inTree.has(id)).forEach(id => {
-    const n = FN[id], d = treeDepth(id), r = el('a', 'frow', `${d ? '<span class="tw">↳ </span>' : ''}${fname(n)}`);
-    r.style.paddingLeft = 10 + 14 * d + 'px';
-    r.dataset.go = id;
-    r.title = n.scene != null ? `${n.name} · in the tour: ${SC[n.scene].chapter}` : `${n.name} · an entry point`;
-    rail.appendChild(r);
-    rows[id] = r;
-  });
-  const panels = flowPanels(dfsOrder, true);
-  root.append(rail, panels);
-  root.addEventListener('click', e => {
-    const a = e.target.closest('[data-go]');
-    if (!a) return;
-    e.preventDefault();
-    const p = $$('.rcode', panels).find(x => x.dataset.fid === a.dataset.go);
-    scrollTo({ top: scrollY + p.getBoundingClientRect().top - barHeight() - 12, behavior: 'smooth' });
-  });
-  // "You are here": the panel that has crossed a line a third of the way down the window.
-  watch(() => {
-    if (!root.offsetParent) return;
-    let here = dfsOrder[0];
-    $$('.rcode', panels).forEach(p => { if (p.getBoundingClientRect().top < innerHeight * .33) here = p.dataset.fid; });
-    const at = treeAnchor(here), row = rows[at];
-    Object.entries(rows).forEach(([id, r]) => r.classList.toggle('here', id === at));
-    if (row && (row.offsetTop < rail.scrollTop || row.offsetTop + row.offsetHeight > rail.scrollTop + rail.clientHeight))
-      rail.scrollTo({ top: row.offsetTop - 40, behavior: 'smooth' });
-  });
-  return root;
-}
-
-// ================= 3 and 4. graphics, steps and their code =================
 // Lights the rows of one copy of a scene only; read mode's hotRows lights every copy on the page.
 function hotIn(sec, si, rows, on) {
   (rows || []).forEach(([h, r]) => {
@@ -208,104 +51,12 @@ function hotIn(sec, si, rows, on) {
     $$(`[data-key="${k}"], [data-hk~="${k}"]`, sec).forEach(x => x.classList.toggle('hot', on));
   });
 }
-// Each cue's rows: its own focus, else the focus before it, as in the tour.
-function rowsByCue(s) {
-  let last = [];
-  return s.cues.map(c => {
-    const f = s.actions.filter(a => a.cue === c.i && a.type === 'focus').flatMap(a => a.rows);
-    if (f.length) last = f;
-    return last;
-  });
-}
-// A widget's parts: a sequence's rows, a table's cells, a flow's nodes and a snippet's lines.
-const PARTS = '.w-seq > [data-row], .w-table .c, .w-flow .fnode, .w-snippet > span';
-const partStep = x => +(x.dataset.hl ?? x.dataset.step ?? 0);
-// The widgets a scene's steps show, by name, in the order read mode places them.
-const shownWidgets = s => [...new Set(s.actions.filter(a => a.type === 'widget').map(a => a.name))];
 
-function scrollyScene(s, si) {
-  const sec = scene(s, si), col = $('.rsteps', sec);
-  if (!col) return sec;
-  col.classList.add('scrolly');
-  $$('.w', col).forEach(w => w.remove());
-  const stage = el('div', 'stage'), steps = $$('.rstep', col), built = {}, cueRows = rowsByCue(s);
-  col.prepend(stage);
-  // The widget on stage at a cue is the last one shown so far, with the parts of the steps this cue shows lit.
-  const stageAt = ci => {
-    const acts = s.actions.filter(a => a.type === 'widget' && a.cue <= ci);
-    if (!acts.length) return null;
-    const name = acts.at(-1).name;
-    return { name, lit: new Set(acts.filter(a => a.name === name && a.cue === ci).map(a => a.step)) };
-  };
-  let active = -1;
-  const activate = ci => {
-    if (ci === active) return;
-    if (active >= 0) hotIn(sec, si, cueRows[active], false);
-    active = ci;
-    steps.forEach((st, i) => st.classList.toggle('active', i === ci));
-    hotIn(sec, si, cueRows[ci], true);
-    const w = stageAt(ci);
-    if (!w) { stage.replaceChildren(); return; }
-    const e = built[w.name] ||= W[s.widgets[w.name].kind](s.widgets[w.name]);
-    $$(PARTS, e).forEach(x => x.classList.toggle('wlit', w.lit.has(partStep(x))));
-    if (stage.firstChild !== e) stage.replaceChildren(e);
-  };
-  // The active cue is the last one whose first shown row has passed a line 45% of the way down the window.
-  watch(() => {
-    const box = sec.getBoundingClientRect();
-    if (!sec.offsetParent || box.bottom < 0 || box.top > innerHeight) return;
-    let ci = 0;
-    cueRows.forEach((rows, i) => {
-      const first = rows.map(([h, r]) => `${si}:${h}:${r}`)
-        .flatMap(k => $$(`[data-key="${k}"], [data-hk~="${k}"]`, sec)).find(x => x.offsetParent);
-      if (first && first.getBoundingClientRect().top < innerHeight * .45) ci = i;
-    });
-    activate(ci);
-  });
-  return sec;
-}
-
-// The rows a widget part draws: the part's own `code` in the spec, else the focus of the cue that brought its step in.
-function partRows(s, name, x, cueRows) {
-  const w = s.widgets[name], own = (w.rows || w.nodes || w.lines || [])[+x.dataset.row]?.code;
-  if (own) return own;
-  const a = s.actions.find(a => a.type === 'widget' && a.name === name && a.step >= partStep(x));
-  return a ? cueRows[a.cue] : [];
-}
-function linkedScene(s, si) {
-  const sec = scene(s, si), cueRows = rowsByCue(s), names = shownWidgets(s);
-  $$('.rstep > .w', sec).forEach((e, wi) => {
-    // Over the widget, only the hovered part's rows light, not the whole step's.
-    const step = e.closest('.rstep');
-    e.onmouseenter = () => step.onmouseleave();
-    e.onmouseleave = () => step.onmouseenter();
-    $$(PARTS, e).forEach(x => {
-      const rows = partRows(s, names[wi], x, cueRows);
-      const group = x.matches('.w-table .c') ? $$(`.c[data-row="${x.dataset.row}"]`, e) : [x];
-      x.onmouseenter = () => { group.forEach(p => p.classList.add('wlit')); hotIn(sec, si, rows, true); };
-      x.onmouseleave = () => { group.forEach(p => p.classList.remove('wlit')); hotIn(sec, si, rows, false); };
-    });
-  });
-  return sec;
-}
-
-// ================= page =================
-const EXPS = [
-  { id: 'nav', title: 'Sections in a horizontal nav', n: () => SC.length,
-    exp: navView, today: () => scenes(SC.map((s, i) => [s, i]), scene),
-    why: 'The read mode\'s sections as a bar under the title, like the video\'s timeline: one segment per section, numbered and named by chapter, filling as you read through it. Hover a segment for the section\'s title. Click one, or press ← and →, to go to a section. <b>Look for:</b> does it keep you oriented in a long PR, and does it make the sections feel like slides you step through?' },
-  { id: 'rail', title: 'Call flow as a tree', n: () => FLOW.length,
-    exp: flowRail, today: () => flowPanels(fileOrder, false),
-    why: 'Every function the PR changes, in call order: depth-first from the ones no other changed function calls, entry points in the order the tour first reaches them. The tree at the side lists only the functions the tour shows, and the entry points that lead to them. The function you are reading, or the one in the tree it sits under, is highlighted. Click a name to go there. Today is the same functions in file order, as GitHub shows them. <b>Look for:</b> is the tree the right size now, and does call order beat file order?' },
-  { id: 'scrolly', title: 'Scroll drives the steps', n: () => codeScenes.length,
-    exp: () => scenes(codeScenes, scrollyScene), today: () => scenes(codeScenes, scene),
-    why: 'In Today, hovering a narration step lights its code. Here your scroll does it: the step about the code at the middle of the window is active, its rows light up, and so does its part of the graphic. The graphic stays at the top of the steps column. Nothing is hidden. <b>Look for:</b> is scroll a better pointer than hover, or does the light moving on its own get in the way?' },
-  { id: 'linked', title: 'Graphics that point at their code', n: () => widgetScenes.length,
-    exp: () => { const r = scenes(widgetScenes, linkedScene); r.classList.add('linked'); return r; },
-    today: () => scenes(widgetScenes, scene),
-    why: 'The graphics stay in the side column. Hover any part of one (an arrow or a note in a sequence, a table row, a flow node) and the code it stands for lights up. A part can name its own code in the spec (<code>code:</code>, in the same form as a focus); otherwise it gets the code the narration was on when that part appeared. <b>Look for:</b> does it help you map a diagram that spans several places onto the code?' },
-];
-const KEY = `lab-verdicts:${META.github}#${META.pr}:round6`;
+// ================= experiments =================
+// Each: { id, title, n: () => how many things in this PR it applies to, exp: () => element, today: () => element, why }.
+const EXPS = [];
+const ROUND = 7;
+const KEY = `lab-verdicts:${META.github}#${META.pr}:round${ROUND}`;
 // Sandboxed iframes (bb's inline viewer) throw on any localStorage access; verdicts then last only for the visit.
 const store = (() => { try { localStorage.getItem(KEY); return localStorage; } catch { return null; } })();
 const verdicts = JSON.parse(store?.getItem(KEY) || '{}');
@@ -397,10 +148,14 @@ window.labRead = () => {
   $('#read').append(pop, dock);
   document.title = `Read-mode experiments · ${META.title}`;
   $('#rtitle').innerHTML = `Read-mode experiments<small>${linkify(esc(META.kicker))} · ${esc(META.title)}</small>`;
+  if (!EXPS.length) {
+    $('#rbody').appendChild(el('p', 'lab-intro', `Round ${ROUND}: no experiments yet. Every kept one is in the walkthrough's read mode.`));
+    return;
+  }
   const bar = el('div', 'toc');
   $('#rbar').insertBefore(bar, $('#playTour'));
   const q = new URLSearchParams(location.search), view = q.get('view') === 'today' ? 'today' : 'exp';
-  $('#rbody').appendChild(el('p', 'lab-intro', 'Round 6: four ideas tried on this PR\'s own read mode, one per tab. The renderings you kept are already in it, peek included: hover a dotted call or type name to see its declaration, and click it to pin the card. Flip <b>Today</b> and <b>Experiment</b> to compare, then leave a verdict; the last tab collects them to paste back.'));
+  $('#rbody').appendChild(el('p', 'lab-intro', `Round ${ROUND}: ${EXPS.length} idea${EXPS.length === 1 ? '' : 's'} tried on this PR's own read mode, one per tab. The renderings you kept are already in it. Flip <b>Today</b> and <b>Experiment</b> to compare, then leave a verdict; the last tab collects them to paste back.`));
   const add = (id, title, make) => {
     const button = el('button', '', esc(title));
     button.onclick = () => selectTab(id);
@@ -412,6 +167,6 @@ window.labRead = () => {
   saveVerdicts();
   selectTab(q.get('only') || location.hash.slice(1));
   addEventListener('hashchange', () => selectTab(location.hash.slice(1)));
-  setBarHeight();
+  setBarHeights();
 };
 </script>

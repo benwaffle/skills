@@ -89,6 +89,10 @@ def main():
     jobs += [(f"file://{page}?mode=read&only={s}", os.path.join(args.out, f"read-{s:02d}.png"), (1320, 1500), f"read · scene {s}")
              for s in scenes]
     if args.only is None:
+        with open(page) as f:
+            has_flow = '"flow": []' not in f.read()
+        if has_flow:
+            jobs.append((f"file://{page}?mode=read&only=flow", os.path.join(args.out, "read-flow.png"), (1320, 1500), "read · call order"))
         jobs.append((f"file://{page}?mode=read&only=rest", os.path.join(args.out, "read-rest.png"), (1320, 1500), "read · rest of the diff"))
     with ThreadPoolExecutor(max_workers=6) as pool:
         results = list(pool.map(lambda j: shoot(*j[:3]), jobs))

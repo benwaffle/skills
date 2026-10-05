@@ -1,6 +1,7 @@
 """Go-aware renderings for read mode, from tree-sitter (goast.py): field types that link to their declarations, with
 badges that spell the type out; calls and type names that peek at their declarations; table-driven test cases shown as
-a table; and error handling folded to one line. Other languages get none of them."""
+a table; error handling folded to one line; and the changed functions in call order. Other languages get none of
+them."""
 
 import itertools
 import os
@@ -482,6 +483,77 @@ class Views:
                         "more": max(0, end - start + 1 - PEEK_ROWS)}
             todo += sorted(self.peek_used - before)
         return out
+
+    # ---------------- call flow ----------------
+
+    def narrated(self, scenes):
+        """The changed functions the tour shows a line of, each with the first scene that does."""
+        out = {}
+        for si, s in enumerate(scenes):
+            for w in s.get("hunks", []):
+                lines = {r["n"] for r in w["rows"] if r.get("n")}
+                for fid, f in self.funcs.items():
+                    if f["file"] == w["file"] and any(f["start"] <= n <= f["end"] for n in lines):
+                        out.setdefault(fid, si)
+        return out
+
+    def flow(self, narrated):
+        """The functions the PR changes in the order they call each other: depth-first from the ones no other changed
+        function calls, in the order the tour shows the narrated function nearest each. Each comes with its whole code
+        as a read-mode window, and its parent in the walk. None when no changed function calls another."""
+        changed = [fid for fid, f in self.funcs.items() if any(f["start"] <= n <= f["end"] for n in self.changed(f["file"]))]
+        changed.sort(key=lambda fid: (self.funcs[fid]["file"], self.funcs[fid]["line"]))
+        changed_set, calls = set(changed), {}
+        for fid in changed:
+            f, seen = self.funcs[fid], []
+            for line, marks in sorted(self.symbols(f["file"]).items()):
+                if f["line"] <= line <= f["end"]:
+                    seen += [ref for *_, ref, kind in marks if kind == "call" and ref in changed_set and ref != fid]
+            calls[fid] = list(dict.fromkeys(seen))
+        if not any(calls.values()):
+            return []
+        callers = {fid: [g for g in changed if fid in calls[g]] for fid in changed}
+
+        def reach(fid, seen):
+            if fid not in seen:
+                seen.add(fid)
+                for c in calls[fid]:
+                    reach(c, seen)
+            return seen
+
+        def nearest_shown(fid):
+            """The first scene to show one of the narrated functions fewest calls away. A deep helper that many
+            entry points share, like a validity check, says little about where an entry point belongs."""
+            level, seen = [fid], {fid}
+            while level:
+                if scenes := [narrated[g] for g in level if g in narrated]:
+                    return min(scenes)
+                level = list(dict.fromkeys(c for g in level for c in calls[g] if c not in seen))
+                seen.update(level)
+            return float("inf")
+
+        roots = sorted((fid for fid in changed if not callers[fid]), key=lambda fid: (nearest_shown(fid), -len(reach(fid, set()))))
+        order, depth, parent = [], {}, {}
+
+        def visit(fid, d, up):
+            if fid not in depth:
+                depth[fid], parent[fid] = d, up
+                order.append(fid)
+                for c in calls[fid]:
+                    visit(c, d + 1, fid)
+
+        for fid in roots + changed:
+            visit(fid, 0, None)
+        nodes = []
+        for fid in order:
+            f = self.funcs[fid]
+            fd = self.repo.file(f["file"])
+            win, struct = fd.head_window(f["start"], f["end"])
+            self.annotate(fd, win, struct)
+            nodes.append({"id": fid, "name": f["name"], "file": f["file"], "line": f["line"], "depth": depth[fid],
+                          "parent": parent[fid], "scene": narrated.get(fid), "calls": calls[fid], "callers": callers[fid],
+                          "window": win})
+        return nodes
 
     # ---------------- error handling ----------------
 

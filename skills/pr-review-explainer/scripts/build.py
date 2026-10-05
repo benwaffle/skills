@@ -11,6 +11,7 @@ The spec format is documented in ../reference/spec.md.
 
 import argparse
 import base64
+import bisect
 import json
 import os
 import re
@@ -176,6 +177,36 @@ class FileDiff:
         if raw != win["rows"]:  # new files and files difftastic can't parse look the same either way, so send them once
             win["raw"] = raw
         return win
+
+    def head_window(self, start, end):
+        """Head lines start to end as a window with no gaps, and the structural rows it renders: the diff's own rows
+        where it has them, deletions included, and the head file's lines as context everywhere else."""
+        by_new, dels, pairs = {}, {}, []
+        for rows in self.hunks:
+            pending, last = [], None
+            for r in rows:
+                if r["n"] is None:
+                    pending.append(dict(r))
+                    continue
+                by_new[r["n"]], last = dict(r), r["n"]
+                if r["o"] is not None:
+                    pairs.append((r["n"], r["o"]))
+                if pending:
+                    dels[r["n"]], pending = pending, []
+            if pending and last is not None:
+                dels[last + 1] = pending
+        pairs.sort()
+        raw = []
+        for n in range(start, end + 1):
+            raw += dels.get(n, [])
+            if n in by_new:
+                raw.append(by_new[n])
+                continue
+            i = bisect.bisect_left(pairs, (n, -1)) - 1
+            o = None if self.is_new else n - (pairs[i][0] - pairs[i][1] if i >= 0 else 0)
+            raw.append({"k": " ", "o": o, "n": n, "text": self.new_lines[n - 1]})
+        struct = self.structural(raw)
+        return self.window(raw, struct), struct
 
 
 # ---------------- link titles ----------------
@@ -437,9 +468,10 @@ class Builder:
                 "refs": fetch_refs(spec) if self.fetch else {},
                 "statCommand": f"git diff --stat {self.repo.base_name}...{self.repo.branch}", "head": self.repo.head}
         rest = self.rest()
-        peek = self.views.peek_blocks()  # before type_blocks: a peek's rows link more types
+        flow = self.views.flow(self.views.narrated(scenes))
+        peek = self.views.peek_blocks()  # after every window, and before type_blocks: a peek's rows link more types
         return {"audio": audio, "duration": round(t, 3), "meta": meta, "scenes": scenes,
-                "stat": self.repo.numstat(), "rest": rest, "peek": peek, "types": self.views.type_blocks()}, times
+                "stat": self.repo.numstat(), "rest": rest, "flow": flow, "peek": peek, "types": self.views.type_blocks()}, times
 
     def rest(self):
         """Every hunk with a changed line no scene showed, so the read mode covers the whole diff."""

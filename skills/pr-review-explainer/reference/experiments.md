@@ -21,6 +21,9 @@ These are Ben's ideas for visualizing a PR. He wants all of them tried, one at a
 | Test cases as a table in place of their literals (from the lab), including part of a table when a hunk shows only some cases | read mode, `views.py` | keep; the bar above the table switches to the code |
 | Happy path (from the lab): error handling folded to one line of its real code, with work calls bright. Never folds a block with a change in it, so a fold can't hide one. A block a step points at wholly starts open, and a hovered step lights the fold that stands for its rows. An `if` whose initializer does the work (`if err := db.GetContext(…); err != nil`) never folds: Ben found the fold "kind of worse than expanded, mainly because it wraps the function call" | read mode, `views.py` | keep; each fold is its own toggle |
 | Peek, don't jump (from the lab): calls and type names that resolve into the PR's packages are dotted; hover shows the declaration, a click pins the card in a dock at the right | read mode, `views.py` | keep; "showing 'called from 15 changed lines' is not useful", so cards show the declaration only |
+| Sections in a nav like the tour's timeline (from the lab): one segment per section, filling as you read it; a click or ← → jumps | read mode | keep |
+| Call order (from the lab): every changed function whole, in the order they call each other, beside a tree of the functions the tour shows and the entry points that reach them | read mode's "Call order" section, `views.py` | keep |
+| Graphics that point at their code (from the lab): hovering a sequence row, table row, flow node or snippet line lights the code it stands for, from the part's `code:` or its step's cue | read mode | keep |
 
 ## In the lab (diff rendering)
 
@@ -61,10 +64,12 @@ All three moved into read mode (see Built), with no global toggles: Ben said "we
 
 | Round 6 | What the lab shows | Verdict |
 |---|---|---|
-| Sections in a horizontal nav | A sticky bar under the title with one segment per read-mode section, numbered and named by chapter, like the video's timeline. Each segment fills as you read through its section. A click, or ← and →, goes to a section. | pending |
-| Call flow as a tree | The rail, with no hover card. The tree lists only the functions the tour shows a line of, plus the entry points that reach them (13 of 63 on the 40-file PR). Entry points are ordered by the scene that shows the narrated function fewest calls away, so the tree follows the tour. The panels still hold every changed function, and the tree marks the nearest of its functions above the panel you read. | pending |
-| Scroll drives the steps | The step about the code at mid-window is active: its rows light, and so do the parts of the graphic its cue shows, on a stage at the top of the side column. Nothing fades or hides. | pending |
-| Graphics that point at their code | Graphics stay in the side column. Hovering a part (a sequence arrow or note, a table row, a flow node, a snippet line) lights the code it stands for: the part's own `code:` in the spec, else the focus of the cue that brought its step in. | pending |
+| Sections in a horizontal nav | A sticky bar under the title with one segment per read-mode section, numbered and named by chapter, like the video's timeline. Each segment fills as you read through its section. A click, or ← and →, goes to a section. | keep |
+| Call flow as a tree | The rail, with no hover card. The tree lists only the functions the tour shows a line of, plus the entry points that reach them (13 of 63 on the 40-file PR). Entry points are ordered by the scene that shows the narrated function fewest calls away, so the tree follows the tour. The panels still hold every changed function, and the tree marks the nearest of its functions above the panel you read. | keep |
+| Scroll drives the steps | The step about the code at mid-window is active: its rows light, and so do the parts of the graphic its cue shows, on a stage at the top of the side column. Nothing fades or hides. | drop |
+| Graphics that point at their code | Graphics stay in the side column. Hovering a part (a sequence arrow or note, a table row, a flow node, a snippet line) lights the code it stands for: the part's own `code:` in the spec, else the focus of the cue that brought its step in. | keep |
+
+The three keepers moved into read mode. The call flow became a section after the verdict, "Call order", which the nav lists with the scenes and the rest of the diff. It appears only when some changed function calls another.
 
 ## Tried and dropped
 
@@ -76,6 +81,7 @@ All three moved into read mode (see Built), with no global toggles: Ben said "we
 | The PR as an outline (lab round 2): every hunk folded under a one-line summary the agent wrote | "it's easier to read the code than the english descriptions". Prose standing in for code loses to the code itself. |
 | The call flow as a strip across the top (lab round 5) | "super wide call graph, not useful". A horizontal nav fits a few sections, not every function. |
 | Graphics inside the code (lab round 5): each widget under the rows the narration was on when it appeared | A sequence diagram "represents multiple parts of the code, so you can't pin it to one line". Linking its parts to their code took its place. |
+| Scroll drives the steps (lab rounds 5 and 6): the step about the code at mid-window lights itself, its rows and its part of the graphic | Dropped in round 6, with no note. In round 5 Ben found "highlighting the code is good" but was "not a fan of hiding review notes until i reach them". |
 
 ## Open from the second test PR
 
@@ -93,7 +99,6 @@ A subagent ran the whole skill on a 40-file PR that mostly modifies existing cod
 ## To try
 
 - **Explaining code without replacing it.** Ben: "keep exploring ideas around explaining code". Two summaries lost to the code they described (chips and the outline), so explanations should sit beside the code or inside it, not in place of it.
-- **Section nav, call-flow tree, graphics linked to code:** in the lab as round 6. For the call flow, Ben likes "how it guides me thru the PR in a logical order". For graphics, the widgets "work great in the video" and he wants them tied to the code they stand for.
 - **Switches as tables.** Render a `switch` as value → behavior (enum values already show with the types).
 - **Lab experiments in other languages.** Table tests from pytest `parametrize`; happy path for Python `try/except`, TS `catch`, Rust `?`/`match Err`; compare happy path against pseudocode on the same function.
 - **Pseudocode summaries.** Ben is undecided.

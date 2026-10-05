@@ -81,7 +81,7 @@ cues:
 
 Children reveal by step: content with `step: k` appears when the cue reaches `{widget: name, step: k}`. Step 0 is when the widget slides in. `hl: k` outlines a cell or node at step k. Text fields accept the same inline markup as notes: `` `code` ``, `**bold**`, `~~strike~~`, `{a:chip}`. Chip colors are `a` blue, `b` violet, `c` amber, `d` green and `x` struck-through grey.
 
-A table row, flow node, snippet line or sequence row can take `code:`, focus ranges in the same form as `focus:`, for the code it stands for. The lab's linked graphics light that code when the part is hovered. A part with no `code:` gets the focus of the cue that brought its step in, which is right when steps follow the code and wrong when they follow time (a retry ladder). Give `code:` to every row of a sequence that spans several places.
+A table row, flow node, snippet line or sequence row can take `code:`, focus ranges in the same form as `focus:`, for the code it stands for. Read mode lights that code when the part is hovered. A part with no `code:` gets the focus of the cue that brought its step in, which is right when steps follow the code and wrong when they follow time (a retry ladder). Give `code:` to every row of a sequence that spans several places.
 
 ```yaml
 widgets:
