@@ -19,7 +19,8 @@ These are Ben's ideas for visualizing a PR. He wants all of them tried, one at a
 | Message ladder: who sends what to whom, old vs new identity in different chip colors, revealed step by step | `sequence` widget | asked for ("visualize who's sending what kind of messages to whom"); "works great in the video" |
 | Go types as code you can open (from the lab): a field's type opens its declaration under the line, with its methods; badges spell out pointer, optional, list of, map, and `iota` values | read mode, `views.py` | keep; always on, since each link is its own toggle |
 | Test cases as a table in place of their literals (from the lab), including part of a table when a hunk shows only some cases | read mode, `views.py` | keep; the bar above the table switches to the code |
-| Happy path (from the lab): error handling folded to one line of its real code, with work calls bright. Never folds a block with a change in it, so a fold can't hide one. A block a step points at wholly starts open, and a hovered step lights the fold that stands for its rows | read mode, `views.py` | keep; each fold is its own toggle |
+| Happy path (from the lab): error handling folded to one line of its real code, with work calls bright. Never folds a block with a change in it, so a fold can't hide one. A block a step points at wholly starts open, and a hovered step lights the fold that stands for its rows. An `if` whose initializer does the work (`if err := db.GetContext(…); err != nil`) never folds: Ben found the fold "kind of worse than expanded, mainly because it wraps the function call" | read mode, `views.py` | keep; each fold is its own toggle |
+| Peek, don't jump (from the lab): calls and type names that resolve into the PR's packages are dotted; hover shows the declaration, a click pins the card in a dock at the right | read mode, `views.py` | keep; "showing 'called from 15 changed lines' is not useful", so cards show the declaration only |
 
 ## In the lab (diff rendering)
 
@@ -48,15 +49,22 @@ These are Ben's ideas for visualizing a PR. He wants all of them tried, one at a
 | Test cases as a table, inside the test | The test function as code, with the case literals replaced in place by the table; a bar switches between table and code. Columns are the field names as written. Code cells are syntax-highlighted. Boilerplate shared by 3+ cases shows as `…`, and every trimmed or cut cell has **more** to show it in full. | keep ("lgtm") |
 | Happy path | Each error-handling `if` (no else) joined onto one dimmed, highlighted line of its real code, like an editor fold. It counts when the condition checks `err != nil`, or when the body only returns an error, assigns to err-named variables (`errs = multierr.Append(…)`), panics or calls a `Fatal` log, optionally ending in `continue` or `break`. Calls that do real work stay bright (`if err := f(); …`, `errs = multierr.Append(errs, x.validate())`); error constructors, builtins and conversions dim with the rest. Opening a fold replaces the line with the block; clicking the block folds it again. | keep ("lgtm") |
 
+All three moved into read mode (see Built), with no global toggles: Ben said "we don't need toggles, mostly, esp for things that have no impact when collapsed or things with built-in toggles". The tour still shows plain code.
+
 | Round 5 (on the real read mode) | What the lab shows | Verdict |
 |---|---|---|
-| Peek, don't jump | Calls and type names that resolve into the PR's packages are dotted. Hover shows the declaration and the changed lines that call it. Click pins the card in a dock at the right; click again or × unpins. Cards peek further. Resolution is tree-sitter only: same package, imports by local name, and variables whose type the function declares (receiver, parameters, `x := T{}`, range variables, struct fields). | pending |
-| Call flow: a strip across the top | The functions the PR changes in call order, depth-first from those no other changed function calls. Depth goes down and order goes across, with the current function outlined. Each function shows whole, with what calls it and what it calls. Today is file order. On a 63-function PR the strip is about 10,000px wide. | pending |
-| Call flow: a rail down the side | The same order as an indented tree in a sticky rail. | pending |
-| Graphics that follow your scroll | The step whose rows are at mid-window lights up, its rows light, and the other steps fade. The scene's widget sits at the top of the side column and reveals step by step, as in the video. | pending |
-| Graphics inside the code | Each widget sits in the code column under the rows the narration was on when it appeared, fully revealed, with its step's first sentence. | pending |
+| Peek, don't jump | Calls and type names that resolve into the PR's packages are dotted. Hover shows the declaration and the changed lines that call it. Click pins the card in a dock at the right; click again or × unpins. Cards peek further. Resolution is tree-sitter only: same package, imports by local name, and variables whose type the function declares (receiver, parameters, `x := T{}`, range variables, struct fields). | keep, but "showing 'called from 15 changed lines' is not useful". Moved into read mode without the call sites. |
+| Call flow: a strip across the top | The functions the PR changes in call order, depth-first from those no other changed function calls. Depth goes down and order goes across, with the current function outlined. Each function shows whole, with what calls it and what it calls. Today is file order. On a 63-function PR the strip is about 10,000px wide. | drop: "super wide call graph, not useful. i was thinking more like when you organize the diff into a few slides/sections, we have a horizontal nav" |
+| Call flow: a rail down the side | The same order as an indented tree in a sticky rail. | maybe: "tree is useful, but remove the hover card, and only put important call flows into the tree" |
+| Graphics that follow your scroll | The step whose rows are at mid-window lights up, its rows light, and the other steps fade. The scene's widget sits at the top of the side column and reveals step by step, as in the video. | maybe: "not sure what's the experiment here. highlighting the code is good. not a fan of hiding review notes until i reach them" |
+| Graphics inside the code | Each widget sits in the code column under the rows the narration was on when it appeared, fully revealed, with its step's first sentence. | maybe: "i don't think these examples benefit from the graphics being inside the code. esp the sequence diagram, which by its nature represents multiple parts of the code, so you can't pin it to one line. i'd love to hover over the sequence diagram and have the code highlighted" |
 
-All three moved into read mode (see Built), with no global toggles: Ben said "we don't need toggles, mostly, esp for things that have no impact when collapsed or things with built-in toggles". The tour still shows plain code.
+| Round 6 | What the lab shows | Verdict |
+|---|---|---|
+| Sections in a horizontal nav | A sticky bar under the title with one segment per read-mode section, numbered and named by chapter, like the video's timeline. Each segment fills as you read through its section. A click, or ← and →, goes to a section. | pending |
+| Call flow as a tree | The rail, with no hover card. The tree lists only the functions the tour shows a line of, plus the entry points that reach them (13 of 63 on the 40-file PR). Entry points are ordered by the scene that shows the narrated function fewest calls away, so the tree follows the tour. The panels still hold every changed function, and the tree marks the nearest of its functions above the panel you read. | pending |
+| Scroll drives the steps | The step about the code at mid-window is active: its rows light, and so do the parts of the graphic its cue shows, on a stage at the top of the side column. Nothing fades or hides. | pending |
+| Graphics that point at their code | Graphics stay in the side column. Hovering a part (a sequence arrow or note, a table row, a flow node, a snippet line) lights the code it stands for: the part's own `code:` in the spec, else the focus of the cue that brought its step in. | pending |
 
 ## Tried and dropped
 
@@ -66,6 +74,8 @@ All three moved into read mode (see Built), with no global toggles: Ben said "we
 | Happy-path toggle (v1: folded Go `if err != nil { … }` blocks, matched by `^(\s*)(} else )?if .*err.* != nil {$` up to the `}` at the same indent) | Parked until Ben worked through the experiments; now back in the lab, using tree-sitter instead of the regex. |
 | Change summaries as chips (lab round 1): declarations, params, fields and call arguments from tree-sitter | "too deterministic, let the LLM do it instead", which became the outline. |
 | The PR as an outline (lab round 2): every hunk folded under a one-line summary the agent wrote | "it's easier to read the code than the english descriptions". Prose standing in for code loses to the code itself. |
+| The call flow as a strip across the top (lab round 5) | "super wide call graph, not useful". A horizontal nav fits a few sections, not every function. |
+| Graphics inside the code (lab round 5): each widget under the rows the narration was on when it appeared | A sequence diagram "represents multiple parts of the code, so you can't pin it to one line". Linking its parts to their code took its place. |
 
 ## Open from the second test PR
 
@@ -83,7 +93,7 @@ A subagent ran the whole skill on a 40-file PR that mostly modifies existing cod
 ## To try
 
 - **Explaining code without replacing it.** Ben: "keep exploring ideas around explaining code". Two summaries lost to the code they described (chips and the outline), so explanations should sit beside the code or inside it, not in place of it.
-- **Peek, call flow, graphics beside the diff:** in the lab as round 5. Ben said "i like it" to peek. For the call flow, he likes "how it guides me thru the PR in a logical order" and is weighing horizontal against vertical. For graphics, the widgets "work great in the video" and he wondered how they fit beside the diff.
+- **Section nav, call-flow tree, graphics linked to code:** in the lab as round 6. For the call flow, Ben likes "how it guides me thru the PR in a logical order". For graphics, the widgets "work great in the video" and he wants them tied to the code they stand for.
 - **Switches as tables.** Render a `switch` as value → behavior (enum values already show with the types).
 - **Lab experiments in other languages.** Table tests from pytest `parametrize`; happy path for Python `try/except`, TS `catch`, Rust `?`/`match Err`; compare happy path against pseudocode on the same function.
 - **Pseudocode summaries.** Ben is undecided.

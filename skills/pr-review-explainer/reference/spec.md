@@ -81,6 +81,8 @@ cues:
 
 Children reveal by step: content with `step: k` appears when the cue reaches `{widget: name, step: k}`. Step 0 is when the widget slides in. `hl: k` outlines a cell or node at step k. Text fields accept the same inline markup as notes: `` `code` ``, `**bold**`, `~~strike~~`, `{a:chip}`. Chip colors are `a` blue, `b` violet, `c` amber, `d` green and `x` struck-through grey.
 
+A table row, flow node, snippet line or sequence row can take `code:`, focus ranges in the same form as `focus:`, for the code it stands for. The lab's linked graphics light that code when the part is hovered. A part with no `code:` gets the focus of the cue that brought its step in, which is right when steps follow the code and wrong when they follow time (a retry ladder). Give `code:` to every row of a sequence that spans several places.
+
 ```yaml
 widgets:
   rules:
@@ -110,7 +112,7 @@ widgets:
     legend: "{c:A} old · {d:B} new"  # optional line under the title
     actors: [MME, HSS, S-CSCF]
     rows:
-      - { from: MME, to: HSS, label: ULR, tag: "{d:IMSI B}", sub: "small grey line under the arrow" }
+      - { from: MME, to: HSS, label: ULR, tag: "{d:IMSI B}", sub: "small grey line under the arrow", code: [["ulr := buildULR(", null, 0]] }
       - { from: HSS, to: MME, label: CLA, dashed: true, tone: err, step: 1 }   # tones: err, ok, dim
       - { note: "box on a lifeline", at: HSS, tone: hot, step: 1 }             # at: one actor or a list to span
       - { divider: "this PR", step: 2 }                                         # full-width section label

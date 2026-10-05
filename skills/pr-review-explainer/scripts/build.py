@@ -325,6 +325,15 @@ class Builder:
             picked += [[h, i] for h, i, _ in pool[a:b + 1]]
         return picked
 
+    def widget(self, scene, w):
+        """A widget with each part's `code`, focus ranges for the rows that part draws, resolved as a focus's are."""
+        out = dict(w)
+        for key in ("rows", "nodes", "lines"):
+            if key in w:
+                out[key] = [{**r, "code": self.resolve_focus(scene, [r["code"]] if isinstance(r["code"], str) else r["code"])}
+                            if isinstance(r, dict) and "code" in r else r for r in w[key]]
+        return out
+
     def ref_for(self, scene, rows):
         if not rows:
             return None
@@ -365,6 +374,7 @@ class Builder:
             scene = {k: v for k, v in sc.items() if k not in ("cues", "hunks")}
             scene.setdefault("widgets", {})
             scene["hunks"] = [self.hunk_window(h) for h in sc.get("hunks", [])]
+            scene["widgets"] = {name: self.widget(scene, w) for name, w in scene["widgets"].items()}
             if scene["kind"] == "summary":
                 scene["items"] = [{"text": it["text"], "nit": it.get("nit", False),
                                    "ref": self.ref_marker(it["file"], it["marker"]) if it.get("file") else None}
@@ -427,8 +437,9 @@ class Builder:
                 "refs": fetch_refs(spec) if self.fetch else {},
                 "statCommand": f"git diff --stat {self.repo.base_name}...{self.repo.branch}", "head": self.repo.head}
         rest = self.rest()
+        peek = self.views.peek_blocks()  # before type_blocks: a peek's rows link more types
         return {"audio": audio, "duration": round(t, 3), "meta": meta, "scenes": scenes,
-                "stat": self.repo.numstat(), "rest": rest, "types": self.views.type_blocks()}, times
+                "stat": self.repo.numstat(), "rest": rest, "peek": peek, "types": self.views.type_blocks()}, times
 
     def rest(self):
         """Every hunk with a changed line no scene showed, so the read mode covers the whole diff."""

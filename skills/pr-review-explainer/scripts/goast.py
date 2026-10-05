@@ -373,15 +373,17 @@ def work_calls(src, n):
 def error_blocks(src):
     """Error-handling if blocks, outermost only: their line range, and the spans to keep bright when the block folds
     to one line. Those are the calls that do real work and, unless the condition only checks an err, the condition
-    with its initializer: a check like `remaining != 0` is logic worth reading, not plumbing."""
+    with its initializer: a check like `remaining != 0` is logic worth reading, not plumbing. An if whose initializer
+    does the work, as in `if err := db.GetContext(…); err != nil`, is not error handling, so it never folds."""
     out = []
 
     def visit(n):
-        if n.type == "if_statement" and handles_error(src, n):
+        init = n.child_by_field_name("initializer") if n.type == "if_statement" else None
+        if n.type == "if_statement" and handles_error(src, n) and not (init and work_calls(src, init)):
             bright = work_calls(src, n)
             cond = n.child_by_field_name("condition")
             if not ERR_CHECK.search(src.text(cond)):
-                bright.append(spans(n.child_by_field_name("initializer") or cond, cond))
+                bright.append(spans(init or cond, cond))
             out.append({"start": first(n), "end": last(n), "bright": bright})
             return
         for c in n.named_children:

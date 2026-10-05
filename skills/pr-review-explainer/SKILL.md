@@ -17,8 +17,9 @@ One HTML file, two modes over the same scene data:
 - **Tour**: a 1280×720 player. Narration (Breeze TTS 2 by default) drives a timeline that scrolls the real diff, focuses line ranges, morphs old code into new, and slides review notes and small widgets into a side column. Scrubbing, speed, chapters and `?t=` deep links are exact, because every animation is a paused Web Animation set from the audio clock.
 - **Read**: the same scenes as a document. The code is on the left. On the right, one block per narrated step; hovering a block lights up its rows. Rows no step points at are folded, and every fold can be collapsed again. A toggle switches between the structural diff (default) and the raw line diff. "▶ from here" jumps into the tour. A final section lists every hunk the tour skipped, so nothing in the PR is hidden.
 
-  In Go files the structural diff gets three renderings from tree-sitter, with nothing to write in the spec:
+  In Go files the structural diff gets four renderings from tree-sitter, with nothing to write in the spec:
   - a field's type opens its declaration under the line, with badges that spell the type out;
+  - a call or type name from the PR's packages shows its declaration on hover, and a click pins it at the side;
   - test-case literals show as a table in their place;
   - error handling folds to one line of its real code.
 

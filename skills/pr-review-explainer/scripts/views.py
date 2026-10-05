@@ -1,6 +1,6 @@
 """Go-aware renderings for read mode, from tree-sitter (goast.py): field types that link to their declarations, with
-badges that spell the type out; table-driven test cases shown as a table; and error handling folded to one line. Other
-languages get none of them."""
+badges that spell the type out; calls and type names that peek at their declarations; table-driven test cases shown as
+a table; and error handling folded to one line. Other languages get none of them."""
 
 import itertools
 import os
@@ -13,6 +13,8 @@ from highlight import char_links, css_class, lexer_for, render, tokens_by_line
 ONE_LINE_STMTS = 2
 MIN_CASES = 2
 DIFF_MIN = 3
+PEEK_ROWS = 40
+PEEK_MAX = 300
 
 
 def strip_indent(tokens):
@@ -150,6 +152,12 @@ class Views:
         self.types = self._types()
         self.links, self.ann = self._line_index()
         self.used = set()
+        self.funcs = self._funcs()
+        self.methods = {}
+        for fid, f in self.funcs.items():
+            if "." in f["name"]:
+                self.methods.setdefault(f["name"].split(".", 1)[1], []).append(fid)
+        self._symbols, self.peek_used = {}, set()
 
     def text(self, path):
         if path not in self._text:
@@ -202,8 +210,14 @@ class Views:
         return {f: self.text(f) for f in self.repo.ls(self.repo.head, d) if f.endswith(".go") and not f.endswith("_test.go")}
 
     def row_links(self, path, n):
-        """The links on a line, as (start byte, end byte, ref[, mark class]); the class defaults to xref, a type link."""
-        return self.links.get((path, n), [])
+        """The links on a line, as (start byte, end byte, ref[, mark class]): type links, whose class defaults to xref,
+        and peeks."""
+        links = self.links.get((path, n), [])
+        if not path.endswith(".go") or self.text(path) is None:
+            return links
+        peeks = [(a, b, ref, "peek") for a, b, ref, _ in self.symbols(path).get(n, []) if not any(a < y and x < b for x, y, *_ in links)]
+        self.peek_used.update(p[2] for p in peeks)
+        return links + peeks
 
     def _line_index(self):
         """Per (file, line): its type links, as (start byte, end byte, type id), and its badges."""
@@ -263,6 +277,210 @@ class Views:
             methods = [{"name": m["name"], "rows": self.code_rows(m["file"], m["start"], m["end"])} for m in t.get("methods", [])]
             out[tid] = {"name": t["name"], "file": t["file"], "line": t["line"], "url": self.repo.url(t["file"], t["line"]),
                         "isNew": self.is_new(t["file"]), "rows": rows, "methods": methods}
+        return out
+
+    # ---------------- peeks ----------------
+
+    def _funcs(self):
+        """Every function and method in the packages the PR touches, keyed `dir:Name` or `dir:Type.Method`."""
+        out = {}
+        for d in self.dirs:
+            for path in self.package_files(d):
+                for decl in goast.declarations(self.src(path)).values():
+                    if decl["kind"] == "func":
+                        out[f"{d}:{decl['name']}"] = {"name": decl["name"], "file": path, "line": decl["start"],
+                                                      "start": goast.doc_start(decl["node"]), "end": decl["end"]}
+        return out
+
+    def imports(self, src):
+        """A file's imports by local name: the package's directory when it's one of the PR's packages, else None."""
+        out = {}
+        for n in goast.walk(src.root):
+            if n.type == "import_spec":
+                path = src.text(n.child_by_field_name("path")).strip('"`')
+                d = next((d for d in self.dirs if d and (path == d or path.endswith("/" + d))), None)
+                alias = n.child_by_field_name("name")
+                out[src.text(alias) if alias else path.rsplit("/", 1)[-1]] = d
+        return out
+
+    def type_id(self, src, t, scope):
+        """The id of the PR's type a type node names, through pointers."""
+        while t is not None and t.type in ("pointer_type", "parenthesized_type"):
+            t = t.named_children[-1]
+        if t is None:
+            return None
+        if t.type == "type_identifier":
+            tid = f"{scope['dir']}:{src.text(t)}"
+        elif t.type == "qualified_type":
+            tid = f"{scope['imports'].get(src.text(t.child_by_field_name('package')))}:{src.text(t.child_by_field_name('name'))}"
+        else:
+            return None
+        return tid if tid in self.types else None
+
+    def elem_id(self, src, t, scope):
+        """The id of the PR's type a slice, array or map type node holds."""
+        while t is not None and t.type in ("pointer_type", "parenthesized_type"):
+            t = t.named_children[-1]
+        if t is not None and t.type in ("slice_type", "array_type"):
+            return self.type_id(src, t.child_by_field_name("element"), scope)
+        if t is not None and t.type == "map_type":
+            return self.type_id(src, t.child_by_field_name("value"), scope)
+        return None
+
+    def field_ref(self, tid, name, many):
+        """The type a field of one of the PR's types holds: itself or through a pointer, or, with many, as a slice's or
+        map's element."""
+        f = next((f for f in self.types.get(tid, {}).get("fields", []) if f["name"] == name), None)
+        if f is None or not f["ref"]:
+            return None
+        collection = any(m == "list" or m.startswith("map[") for m in f["mods"])
+        return f["ref"] if collection == many else None
+
+    def expr_type(self, src, e, scope, many=False):
+        """The PR's type an expression holds (or, with many, holds a collection of), as far as the function's
+        declarations say: a variable, or a field of one."""
+        while e.type in ("parenthesized_expression", "unary_expression"):
+            e = e.child_by_field_name("operand") or e.named_children[-1]
+        if e.type == "identifier":
+            return (scope["many"] if many else scope["one"]).get(src.text(e))
+        if e.type == "selector_expression":
+            t = self.expr_type(src, e.child_by_field_name("operand"), scope)
+            return t and self.field_ref(t, src.text(e.child_by_field_name("field")), many)
+        return None
+
+    def outside_type(self, src, t, scope):
+        """Whether a type node names a type from a package outside the PR, through pointers."""
+        while t is not None and t.type in ("pointer_type", "parenthesized_type"):
+            t = t.named_children[-1]
+        return t is not None and t.type == "qualified_type" and scope["imports"].get(src.text(t.child_by_field_name("package")), "") is None
+
+    def outside_call(self, src, e, scope):
+        """Whether an expression calls a function of a package outside the PR, like `sqlx.Open(…)`."""
+        fn = e.child_by_field_name("function") if e.type == "call_expression" else None
+        if fn is None or fn.type != "selector_expression" or fn.child_by_field_name("operand").type != "identifier":
+            return False
+        return scope["imports"].get(src.text(fn.child_by_field_name("operand")), "") is None
+
+    def from_outside(self, src, e, scope):
+        """Whether an expression holds a value of a type outside the PR, as far as the function's declarations say: a
+        variable of such a type or from an outside call, or a field of one of the PR's types that isn't one of them."""
+        while e.type in ("parenthesized_expression", "unary_expression"):
+            e = e.child_by_field_name("operand") or e.named_children[-1]
+        if e.type == "identifier":
+            return src.text(e) in scope["outside"]
+        if e.type == "call_expression":
+            return self.outside_call(src, e, scope)
+        if e.type == "selector_expression":
+            operand = e.child_by_field_name("operand")
+            if self.from_outside(src, operand, scope):
+                return True
+            t = self.expr_type(src, operand, scope)
+            name = src.text(e.child_by_field_name("field"))
+            f = next((f for f in self.types.get(t, {}).get("fields", []) if f["name"] == name), None) if t else None
+            return f is not None and not f["ref"]
+        return False
+
+    def function_scope(self, src, fn, scope):
+        """The variables in a function that hold one of the PR's types, or a collection of one: the receiver and
+        parameters, `var x T`, `x := T{…}`, and range variables. Also the ones that hold a type from outside the PR,
+        declared with one or assigned from an outside call. Names are not scoped further than the function."""
+        one, many, outside = {}, {}, set()
+        scope = {**scope, "one": one, "many": many, "outside": outside}
+
+        def declare(names, t):
+            for nm in names:
+                if tid := self.type_id(src, t, scope):
+                    one[src.text(nm)] = tid
+                if eid := self.elem_id(src, t, scope):
+                    many[src.text(nm)] = eid
+                if self.outside_type(src, t, scope):
+                    outside.add(src.text(nm))
+
+        for plist in (fn.child_by_field_name("receiver"), fn.child_by_field_name("parameters")):
+            for p in plist.named_children if plist else []:
+                if p.type in ("parameter_declaration", "variadic_parameter_declaration"):
+                    declare(p.children_by_field_name("name"), p.child_by_field_name("type"))
+        for n in goast.walk(fn):
+            if n.type == "var_spec":
+                declare(n.children_by_field_name("name"), n.child_by_field_name("type"))
+            elif n.type == "short_var_declaration":
+                left, right = n.child_by_field_name("left").named_children, n.child_by_field_name("right").named_children
+                if len(right) == 1 and self.outside_call(src, right[0], scope):
+                    outside.update(src.text(l) for l in left)
+                for l, r in zip(left, right):
+                    lit = r.child_by_field_name("operand") if r.type == "unary_expression" else r
+                    if lit is not None and lit.type == "composite_literal":
+                        declare([l], lit.child_by_field_name("type"))
+            elif n.type == "range_clause" and n.child_by_field_name("left") is not None:
+                names = n.child_by_field_name("left").named_children
+                if len(names) == 2 and (tid := self.expr_type(src, n.child_by_field_name("right"), scope, many=True)):
+                    one[src.text(names[1])] = tid
+        return scope
+
+    def resolve_call(self, src, fn, scope):
+        """The function a call names and the identifier to mark: one in the same package, `pkg.F` in another of the
+        PR's packages, or `x.M` where x's type is known, or where only one of the PR's types has a method M and x isn't
+        known to come from outside the PR."""
+        if fn.type == "identifier":
+            fid = f"{scope['dir']}:{src.text(fn)}"
+            return (fid, fn) if fid in self.funcs else None
+        if fn.type != "selector_expression":
+            return None
+        operand, field = fn.child_by_field_name("operand"), fn.child_by_field_name("field")
+        name = src.text(field)
+        if operand.type == "identifier" and src.text(operand) in scope["imports"]:
+            fid = f"{scope['imports'][src.text(operand)]}:{name}"
+            return (fid, field) if fid in self.funcs else None
+        t = self.expr_type(src, operand, scope)
+        if t and f"{t}.{name}" in self.funcs:
+            return f"{t}.{name}", field
+        if self.from_outside(src, operand, scope):
+            return None
+        ms = self.methods.get(name, [])
+        return (ms[0], field) if len(ms) == 1 else None
+
+    def symbols(self, path):
+        """Calls and type names in a file that resolve into the PR's packages: {line: [(start, end, id, kind)]}."""
+        if path not in self._symbols:
+            src, out = self.src(path), {}
+            base = {"dir": os.path.dirname(path), "imports": self.imports(src), "one": {}, "many": {}, "outside": set()}
+            for top in src.root.named_children:
+                scope = self.function_scope(src, top, base) if top.type in ("function_declaration", "method_declaration") else base
+                for n in goast.walk(top):
+                    hit = None
+                    if n.type == "call_expression":
+                        found = self.resolve_call(src, n.child_by_field_name("function"), scope)
+                        hit = found and (found[0], found[1], "call")
+                    elif n.type == "type_identifier":
+                        parent = n.parent
+                        declared = parent.type in ("type_spec", "type_alias") and parent.child_by_field_name("name").start_byte == n.start_byte
+                        tid = self.type_id(src, parent if parent.type == "qualified_type" else n, scope)
+                        hit = (tid, n, "type") if tid and not declared else None
+                    if hit:
+                        ref, node, kind = hit
+                        out.setdefault(goast.first(node), []).append((node.start_point[1], node.end_point[1], ref, kind))
+            self._symbols[path] = out
+        return self._symbols[path]
+
+    def peek_blocks(self):
+        """The start of the declaration of each symbol a shown row peeks at. Peeks inside a peek open further peeks, up
+        to PEEK_MAX symbols."""
+        out, todo = {}, sorted(self.peek_used)
+        while todo and len(out) < PEEK_MAX:
+            sid = todo.pop()
+            if sid in out:
+                continue
+            before = set(self.peek_used)
+            if sid in self.funcs:
+                f = self.funcs[sid]
+                kind, name, file, line, start, end = "func", f["name"], f["file"], f["line"], f["start"], f["end"]
+            else:
+                t = self.types[sid]
+                kind, name, file, line, (start, end) = "type", t["name"], t["file"], t["line"], t["code"]
+            out[sid] = {"kind": kind, "name": name, "file": file, "line": line, "url": self.repo.url(file, line),
+                        "isNew": self.is_new(file), "rows": self.code_rows(file, start, min(end, start + PEEK_ROWS - 1)),
+                        "more": max(0, end - start + 1 - PEEK_ROWS)}
+            todo += sorted(self.peek_used - before)
         return out
 
     # ---------------- error handling ----------------
