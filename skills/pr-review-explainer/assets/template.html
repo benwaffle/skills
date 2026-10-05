@@ -514,21 +514,27 @@ function animateWidget(e, ts) {
 // data-kf on an html widget part: JSON [[step, seconds after that step, {css}], ...], for motion such as a message
 // travelling along a link. Every frame should name every property it animates.
 const kfFrames = (c, at) => JSON.parse(c.dataset.kf).map(([k, dt, css]) => [at(k) + dt, css]);
-// Read mode has no clock, so a widget with data-kf parts gets a button that plays them in real time, each step
-// starting once the previous one's frames end. The parts rest on their last frame.
+// Read mode has no clock, so a widget with data-kf parts gets a button that replays the whole widget in real time:
+// data-step parts reappear at their step, and each step starts once the previous one's frames end. Until then, every
+// part rests on its last frame, so the widget reads as its final state.
 function kfReplay(w) {
-  const parts = $$('[data-kf]', w);
-  if (!parts.length) return;
-  const len = [];
-  parts.forEach(c => JSON.parse(c.dataset.kf).forEach(([k, dt]) => { len[k] = Math.max(len[k] ?? 0, dt + .6); }));
+  const moving = $$('[data-kf]', w), stepped = $$('[data-step]', w).filter(c => +c.dataset.step > 0);
+  if (!moving.length) return;
+  const len = [], grow = (k, d) => { len[k] = Math.max(len[k] ?? 0, d); };
+  moving.forEach(c => JSON.parse(c.dataset.kf).forEach(([k, dt]) => grow(k, dt + .6)));
+  stepped.forEach(c => grow(+c.dataset.step, 1));
   const start = [0];
-  for (let k = 1; k < len.length; k++) start[k] = start[k - 1] + (len[k - 1] ?? 0);
-  const anims = parts.map(c => {
-    const f = kfFrames(c, k => start[k]), t0 = f[0][0], dur = Math.max(f.at(-1)[0] - t0, .001);
+  for (let k = 1; k < len.length; k++) start[k] = start[k - 1] + (len[k - 1] ?? 1);
+  const play = (c, f) => {
+    const t0 = f[0][0], dur = Math.max(f.at(-1)[0] - t0, .001);
     const a = c.animate(f.map(([t, css]) => ({ easing: EASE, ...css, offset: (t - t0) / dur })), { duration: dur * 1000, delay: t0 * 1000, fill: 'both' });
     a.finish();
     return a;
-  });
+  };
+  const anims = [
+    ...moving.map(c => play(c, kfFrames(c, k => start[k]))),
+    ...stepped.map(c => { const t = start[+c.dataset.step]; return play(c, [[t, { opacity: 0, transform: 'translateY(6px)' }], [t + .4, { opacity: 1, transform: 'translateY(0px)' }]]); }),
+  ];
   const b = el('button', 'kfplay', '▶ play');
   b.onclick = () => anims.forEach(a => { a.currentTime = 0; a.play(); });
   (w.querySelector('.w-title') ?? w).prepend(b);
