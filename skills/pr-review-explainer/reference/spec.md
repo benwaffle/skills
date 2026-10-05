@@ -117,9 +117,19 @@ widgets:
       - { note: "box on a lifeline", at: HSS, tone: hot, step: 1 }             # at: one actor or a list to span
       - { divider: "this PR", step: 2 }                                         # full-width section label
   custom:
-    kind: html                       # escape hatch; use data-step="k" / data-hl="k" on children
+    kind: html                       # escape hatch; use data-step="k" / data-hl="k" / data-kf on children
     html: "<div data-step='1'>...</div>"
 ```
+
+**Motion in `html` widgets.** `data-step` only makes a part appear. For movement, such as a message travelling along a link, give the part `data-kf`: a JSON list of `[step, seconds after that step, {css}]` keyframes. They play on the tour clock, so scrubbing stays exact. Name every animated property in every frame, and start a moving part at `opacity: 0`. Don't put `data-kf` and `data-step` on the same part if both animate `opacity` or `transform`. Read mode has no clock, so a widget with `data-kf` parts gets a "▶ play" button that plays the steps one after another. Until then, each part rests on its last frame.
+
+```html
+<div class="pk" style="position:absolute;left:64px;top:46px"
+  data-kf='[[0,0.3,{"opacity":0,"transform":"translateX(0px)"}],[0,0.45,{"opacity":1,"transform":"translateX(0px)"}],
+            [0,1.2,{"opacity":1,"transform":"translateX(57px)"}],[0,1.35,{"opacity":0,"transform":"translateX(57px)"}]]'>REQ</div>
+```
+
+Write colors as `rgb(...)`, not all-digit hex like `#161921`: the build reads `#N` as a PR reference.
 
 ## Summary scenes
 
