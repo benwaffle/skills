@@ -664,10 +664,11 @@ function buildSide(scene, root) {
 }
 
 // ================= tour: stat and summary scenes =================
+const isTestPath = p => /(_test\.go|\.test\.|test_|\/testdata\/|spec\.)/.test(p);
 function statRows(list, animateFrom) {
   const max = Math.max(...DATA.stat.map(s => s.a + s.d));
   DATA.stat.forEach((s, i) => {
-    const row = el('div', 'srow' + (/(_test\.go|\.test\.|test_|\/testdata\/|spec\.)/.test(s.path) ? ' test' : ''));
+    const row = el('div', 'srow' + (isTestPath(s.path) ? ' test' : ''));
     const w = 250 / max;
     row.innerHTML = `<span class="sp">${splitPath(s.path.replace(/^internal\//, ''))}</span><span class="add">+${s.a}</span><span class="del">−${s.d}</span>
       <span class="bar"><i class="a" style="width:${s.a * w}px"></i><i class="d" style="width:${s.d * w}px"></i></span>`;
@@ -681,8 +682,11 @@ function statRows(list, animateFrom) {
   });
 }
 const totals = () => {
-  const a = DATA.stat.reduce((n, s) => n + s.a, 0), d = DATA.stat.reduce((n, s) => n + s.d, 0);
-  return `<b>${DATA.stat.length}</b> files · <b style="color:var(--green)">+${a}</b> <b style="color:var(--red)">−${d}</b> · tests in violet`;
+  const sum = files => files.reduce(([a, d], s) => [a + s.a, d + s.d], [0, 0]);
+  const pair = ([a, d]) => `<b style="color:var(--green)">+${a}</b> <b style="color:var(--red)">−${d}</b>`;
+  const tests = DATA.stat.filter(s => isTestPath(s.path)), code = DATA.stat.filter(s => !isTestPath(s.path));
+  if (!tests.length) return `<b>${DATA.stat.length}</b> files · ${pair(sum(code))}`;
+  return `<b>${DATA.stat.length}</b> files · code ${pair(sum(code))} · <span style="color:var(--violet)">tests</span> ${pair(sum(tests))}`;
 };
 function buildStat(scene, root) {
   const S = scene.start, pane = el('div', 'pane wide term');
